@@ -1,4 +1,5 @@
 # Air Hockey Project
+
 ## CONTEXTE DU PROJET
 
 Projet universitaire de fin de module "Vision par Ordinateur" — Master 1 Informatique/Mathématiques, Université de Toulon.
@@ -146,17 +147,6 @@ Paddle-     : raquette de l'adversaire ×0.9 pendant 20s
 
 ---
 
-## STYLE DE CODE ATTENDU
-
-- Niveau Master 1 Informatique : propre, lisible, pas sur-architecturé
-- Commentaires utiles mais pas partout, en français ou en anglais
-- Quelques imperfections humaines naturelles : une méthode un peu longue, un TODO laissé ici ou là, une constante pas parfaitement placée
-- Pas de design patterns enterprise en masse
-- Noms de variables et méthodes clairs et en anglais
-- Les formules physiques (rebond, smash, lift) doivent apparaître clairement dans le code avec un commentaire expliquant la formule mathématique utilisée
-
----
-
 ## CE QUI SERA ÉVALUÉ PAR LE PROFESSEUR
 
 - Fonctionnalités implémentées vs demandées
@@ -187,3 +177,10 @@ Paddle-     : raquette de l'adversaire ×0.9 pendant 20s
 12. Mode versus 2 joueurs
 13. Polish : textures, effets visuels
 14. Tests et corrections
+
+## IDEE
+
+1. Mettre des cubes à la Mario kart avec des bonus aléatoires (adversaire congelé, bonus fois 2, obstacle, cage retrecit, agrandit , balle lente , balle rapide, grosse balle, ptite balle, )
+2. Tribune (celebration quand il y a un but)
+3. replay avec la camera qui suit (rocket league)
+4. explosion de but 
