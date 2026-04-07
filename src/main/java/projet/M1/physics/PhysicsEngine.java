@@ -46,10 +46,17 @@ public class PhysicsEngine {
     private boolean goalP1 = false;
     private boolean goalP2 = false;
 
+    // Référence optionnelle à GameRules pour notifier les touches de raquette
+    private projet.M1.game.GameRules gameRules;
+
     public PhysicsEngine(Puck puck, Paddle paddleP1, Paddle paddleP2) {
         this.puck     = puck;
         this.paddleP1 = paddleP1;
         this.paddleP2 = paddleP2;
+    }
+
+    public void setGameRules(projet.M1.game.GameRules rules) {
+        this.gameRules = rules;
     }
 
     /**
@@ -63,8 +70,8 @@ public class PhysicsEngine {
         applyFriction(tpf);
         movePuck(tpf);
         handleCollisions();
-        handlePaddleCollision(paddleP1);
-        handlePaddleCollision(paddleP2);
+        handlePaddleCollision(paddleP1, 1);
+        handlePaddleCollision(paddleP2, 2);
     }
 
     /**
@@ -76,7 +83,7 @@ public class PhysicsEngine {
      *   2. On calcule la vitesse relative et on applique une impulsion
      *      en tenant compte de la vitesse de la raquette (effet smash)
      */
-    private void handlePaddleCollision(Paddle paddle) {
+    private void handlePaddleCollision(Paddle paddle, int playerNum) {
         Vector3f pp  = puck.getPosition();
         Vector3f pdp = paddle.getPosition();
 
@@ -111,6 +118,8 @@ public class PhysicsEngine {
                 pv.x + impulse * nx,
                 pv.z + impulse * nz
             );
+            // Notifier GameRules du dernier joueur à avoir touché la rondelle
+            if (gameRules != null) gameRules.notifyPaddleTouch(playerNum);
         }
     }
 

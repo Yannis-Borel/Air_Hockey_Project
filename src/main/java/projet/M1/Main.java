@@ -12,6 +12,8 @@ import com.jme3.system.AppSettings;
 import projet.M1.entities.Paddle;
 import projet.M1.entities.Puck;
 import projet.M1.entities.Table;
+import projet.M1.game.GameRules;
+import projet.M1.hud.HUDManager;
 import projet.M1.input.PlayerInputHandler;
 import projet.M1.physics.PhysicsEngine;
 
@@ -35,6 +37,8 @@ public class Main extends SimpleApplication {
     private Paddle               paddleP1;
     private Paddle               paddleP2;
     private PhysicsEngine        physics;
+    private GameRules            gameRules;
+    private HUDManager           hud;
     private PlayerInputHandler   playerInputP1;
     private PlayerInputHandler   playerInputP2;
 
@@ -93,7 +97,10 @@ public class Main extends SimpleApplication {
         rootNode.attachChild(puck.getNode());
         puck.setVelocity(4f, 7f); // vitesse initiale de test
 
-        physics      = new PhysicsEngine(puck, paddleP1, paddleP2);
+        physics   = new PhysicsEngine(puck, paddleP1, paddleP2);
+        gameRules = new GameRules(puck, physics);
+        physics.setGameRules(gameRules);
+        hud       = new HUDManager(assetManager, rootNode, gameRules);
         // Rouge (P1) : ZQSD — Bleu (P2) : flèches
         playerInputP1 = new PlayerInputHandler(inputManager, paddleP1, "p1_",
             KeyInput.KEY_W, KeyInput.KEY_S, KeyInput.KEY_A, KeyInput.KEY_D);
@@ -163,8 +170,14 @@ public class Main extends SimpleApplication {
 
     @Override
     public void simpleUpdate(float tpf) {
-        playerInputP1.update(tpf);
-        playerInputP2.update(tpf);
-        physics.update(tpf);
+        gameRules.update(tpf);
+        hud.update();
+
+        // Pendant la pause après un but, on fige les inputs et la physique
+        if (gameRules.getState() == GameRules.State.PLAYING) {
+            playerInputP1.update(tpf);
+            playerInputP2.update(tpf);
+            physics.update(tpf);
+        }
     }
 }
