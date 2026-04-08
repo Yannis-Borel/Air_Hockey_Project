@@ -22,11 +22,18 @@ public class Paddle {
 
     private final Node node;
 
+    // Position initiale (pour le reset après un but)
+    private final float initX;
+    private final float initZ;
+
     // Vitesse de déplacement du paddle (utilisée pour calculer l'effet smash)
     private final Vector3f velocity = new Vector3f(0, 0, 0);
     private final Vector3f prevPosition = new Vector3f();
 
     public Paddle(AssetManager assetManager, ColorRGBA color, float startX, float startZ) {
+        this.initX = startX;
+        this.initZ = startZ;
+
         node = new Node("paddle");
 
         // Corps principal du paddle
@@ -41,7 +48,7 @@ public class Paddle {
         Cylinder btn = new Cylinder(2, 32, RADIUS * 0.35f, HEIGHT * 0.5f, true);
         Geometry btnGeo = new Geometry("paddleBtn", btn);
         btnGeo.rotate(-FastMath.HALF_PI, 0, 0);
-        btnGeo.setLocalTranslation(0f, HEIGHT / 2f + 0.01f, 0f); // légèrement au-dessus
+        btnGeo.setLocalTranslation(0f, HEIGHT / 2f + 0.01f, 0f);
         Material btnMat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         btnMat.setColor("Color", ColorRGBA.White);
         btnGeo.setMaterial(btnMat);
@@ -61,14 +68,23 @@ public class Paddle {
         prevPosition.set(node.getLocalTranslation());
         node.setLocalTranslation(x, HEIGHT / 2f, z);
 
-        // Vitesse = delta position / temps
         if (tpf > 0) {
             velocity.set(
-                (x - prevPosition.x) / tpf,
-                0,
-                (z - prevPosition.z) / tpf
+                    (x - prevPosition.x) / tpf,
+                    0,
+                    (z - prevPosition.z) / tpf
             );
         }
+    }
+
+    /**
+     * Replace la raquette à sa position de départ et annule sa vitesse.
+     * Appelé par GameRules après un but.
+     */
+    public void resetPosition() {
+        node.setLocalTranslation(initX, HEIGHT / 2f, initZ);
+        velocity.set(0, 0, 0);
+        prevPosition.set(node.getLocalTranslation());
     }
 
     public void setPosition(float x, float z) {

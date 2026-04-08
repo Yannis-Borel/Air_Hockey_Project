@@ -12,17 +12,23 @@ import com.jme3.scene.Node;
 /**
  * Affiche un décompte 3 → 2 → 1 → GO! au centre de l'écran.
  * Se retire automatiquement une fois terminé.
+ * Restaure la vitesse du palet sauvegardée dans Main à la fin du décompte.
  */
 public class CountdownState extends AbstractAppState {
 
     private SimpleApplication app;
+    private final Main mainApp;
     private Node guiNode;
     private BitmapText countText;
 
     private float timer = 0f;
-    private int   count = 3;   // commence à 3
+    private int count = 3;   // commence à 3
 
     private int screenW, screenH;
+
+    public CountdownState(Main mainApp) {
+        this.mainApp = mainApp;
+    }
 
     @Override
     public void initialize(AppStateManager stateManager, Application app) {
@@ -71,9 +77,9 @@ public class CountdownState extends AbstractAppState {
     // Recentre le texte à chaque changement (la largeur varie entre "3" et "GO!")
     private void center() {
         countText.setLocalTranslation(
-            screenW / 2f - countText.getLineWidth() / 2f,
-            screenH / 2f + countText.getHeight() / 2f,
-            2f
+                screenW / 2f - countText.getLineWidth() / 2f,
+                screenH / 2f + countText.getHeight() / 2f,
+                2f
         );
     }
 
@@ -81,7 +87,8 @@ public class CountdownState extends AbstractAppState {
     public void cleanup() {
         super.cleanup();
         guiNode.detachChild(countText);
-        // Re-cacher le curseur quand on retourne en jeu
+        // Restaurer la vitesse du palet sauvegardée avant la pause
+        mainApp.restorePuckVelocity();
         app.getInputManager().setCursorVisible(false);
     }
 }

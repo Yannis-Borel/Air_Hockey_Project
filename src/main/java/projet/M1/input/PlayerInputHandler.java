@@ -1,7 +1,6 @@
 package projet.M1.input;
 
 import com.jme3.input.InputManager;
-import com.jme3.input.KeyInput;
 import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.KeyTrigger;
 import com.jme3.math.Vector3f;
@@ -15,6 +14,7 @@ import projet.M1.entities.Table;
  * les conflits de mappings JME quand les deux joueurs sont actifs.
  *
  * La zone autorisée est détectée automatiquement selon le côté du paddle.
+ * Les raquettes ne peuvent pas entrer dans la zone neutre (±NEUTRAL_Z).
  */
 public class PlayerInputHandler {
 
@@ -28,15 +28,6 @@ public class PlayerInputHandler {
 
     private final float minX, maxX, minZ, maxZ;
 
-    /**
-     * @param inputManager  gestionnaire d'entrées JME
-     * @param paddle        raquette à contrôler
-     * @param prefix        préfixe unique du joueur ("p1_" ou "p2_")
-     * @param keyUp         constante KeyInput pour "haut"
-     * @param keyDown       constante KeyInput pour "bas"
-     * @param keyLeft       constante KeyInput pour "gauche"
-     * @param keyRight      constante KeyInput pour "droite"
-     */
     public PlayerInputHandler(InputManager inputManager, Paddle paddle,
                               String prefix,
                               int keyUp, int keyDown, int keyLeft, int keyRight) {
@@ -53,10 +44,12 @@ public class PlayerInputHandler {
         maxX =  Table.HALF_W - r;
 
         if (paddle.getPosition().z < 0) {
+            // P1 : côté Z négatif — ne peut pas dépasser la limite de la zone neutre
             minZ = -Table.HALF_L + r;
-            maxZ = -r;
+            maxZ = -Table.NEUTRAL_Z - r;
         } else {
-            minZ =  r;
+            // P2 : côté Z positif — ne peut pas dépasser la limite de la zone neutre
+            minZ =  Table.NEUTRAL_Z + r;
             maxZ =  Table.HALF_L - r;
         }
 

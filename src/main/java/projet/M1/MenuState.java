@@ -51,12 +51,11 @@ public class MenuState extends AbstractAppState {
             this.x = x; this.y = y; this.w = w; this.h = h;
             this.action = action; this.bg = bg;
             this.baseColor  = base.clone();
-            // hover = version plus claire
             this.hoverColor = new ColorRGBA(
-                Math.min(base.r * 1.4f, 1f),
-                Math.min(base.g * 1.4f, 1f),
-                Math.min(base.b * 1.4f, 1f),
-                base.a
+                    Math.min(base.r * 1.4f, 1f),
+                    Math.min(base.g * 1.4f, 1f),
+                    Math.min(base.b * 1.4f, 1f),
+                    base.a
             );
         }
 
@@ -78,7 +77,6 @@ public class MenuState extends AbstractAppState {
         buildMenu();
         registerInput();
 
-        // Rendre le curseur visible dans le menu
         this.app.getInputManager().setCursorVisible(true);
     }
 
@@ -91,8 +89,8 @@ public class MenuState extends AbstractAppState {
         // Titre
         BitmapText title = makeText("PAUSE", font.getCharSet().getRenderedSize() * 2.5f, ColorRGBA.White);
         title.setLocalTranslation(
-            screenW / 2f - title.getLineWidth() / 2f,
-            screenH / 2f + 190f, 1f
+                screenW / 2f - title.getLineWidth() / 2f,
+                screenH / 2f + 190f, 1f
         );
         menuRoot.attachChild(title);
 
@@ -113,34 +111,33 @@ public class MenuState extends AbstractAppState {
     }
 
     private void addMainButton(String label, float x, float y, float w, float h,
-                                ColorRGBA color, Runnable action) {
+                               ColorRGBA color, Runnable action) {
         Geometry bg = addQuad(x, y, w, h, color, 0.5f);
         BitmapText text = makeText(label, font.getCharSet().getRenderedSize() * 1.3f, ColorRGBA.White);
         text.setLocalTranslation(
-            x + w / 2f - text.getLineWidth() / 2f,
-            y + h / 2f + text.getHeight() / 3f,
-            1f
+                x + w / 2f - text.getLineWidth() / 2f,
+                y + h / 2f + text.getHeight() / 3f,
+                1f
         );
         menuRoot.attachChild(text);
         mainButtons.add(new ButtonInfo(x, y, w, h, action, bg, color));
     }
 
-    // Construit les 3 options de caméra dans un node séparé
+    // Dropdown avec seulement 2 options : Vue dessus et Vue longueur
     private void buildCamDropdown(float x, float anchorY) {
         camDropdownNode = new Node("camDropdown");
 
-        String[]   labels  = { "Vue dessus", "Vue largeur", "Vue longueur" };
+        String[]   labels  = { "Vue dessus", "Vue longueur" };
         Runnable[] actions = {
-            () -> { ((Main) app).setCamTop();        resume(); },
-            () -> { ((Main) app).setCamSideWidth();  resume(); },
-            () -> { ((Main) app).setCamSideLength(); resume(); }
+                () -> { ((Main) app).setCamTop();        resume(); },
+                () -> { ((Main) app).setCamSideLength(); resume(); }
         };
 
         float dw = 180f, dh = 42f, gap = 48f;
         ColorRGBA base = new ColorRGBA(0.1f, 0.15f, 0.55f, 0.95f);
 
-        for (int i = 0; i < 3; i++) {
-            float by = anchorY + dh - i * gap;  // du haut vers le bas
+        for (int i = 0; i < 2; i++) {
+            float by = anchorY + dh - i * gap;
 
             Geometry bg = new Geometry("camBg" + i, new Quad(dw, dh));
             Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
@@ -172,7 +169,7 @@ public class MenuState extends AbstractAppState {
 
     void resume() {
         app.getStateManager().detach(this);
-        app.getStateManager().attach(new CountdownState());
+        app.getStateManager().attach(new CountdownState((Main) app));
     }
 
     private void openSettings() {
@@ -205,7 +202,6 @@ public class MenuState extends AbstractAppState {
         if (!isPressed) return;
         Vector2f m = app.getInputManager().getCursorPosition();
 
-        // Priorité au dropdown
         if (camDropdownOpen) {
             for (ButtonInfo b : camButtons) {
                 if (b.contains(m.x, m.y)) { b.action.run(); return; }
