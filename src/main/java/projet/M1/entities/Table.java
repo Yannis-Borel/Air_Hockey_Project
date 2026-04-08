@@ -2,6 +2,7 @@ package projet.M1.entities;
 
 import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
+import com.jme3.material.RenderState;
 import com.jme3.math.ColorRGBA;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
@@ -14,7 +15,7 @@ import com.jme3.scene.shape.Box;
  *   - Table : 10 x 20 unités, centrée en (0, 0, 0)
  *   - Joueur 1 : côté Z négatif (Z < -NEUTRAL_Z)
  *   - Joueur 2 : côté Z positif (Z >  NEUTRAL_Z)
- *   - Zone neutre : Z in [-NEUTRAL_Z, +NEUTRAL_Z]
+ *   - Zone neutre : Z in [-NEUTRAL_Z, +NEUTRAL_Z] = 1/3 de chaque moitié
  *
  * Coordonnées X :
  *   - Bande gauche  : X = -5
@@ -25,13 +26,10 @@ import com.jme3.scene.shape.Box;
 public class Table {
 
     // --- Dimensions fixes ---
-    public static final float WIDTH         = 10f;   // axe X : -5 à +5
-    public static final float LENGTH        = 20f;   // axe Z : -10 à +10
+    public static final float WIDTH         = 10f;
+    public static final float LENGTH        = 20f;
     public static final float WALL_HEIGHT   = 0.5f;
     public static final float WALL_THICK    = 0.25f;
-
-    // Limite entre zone de raquette et zone neutre
-    public static final float NEUTRAL_Z     = 4f;    // zone neutre : Z in [-4, +4]
 
     // Taille de l'ouverture du but (centrée sur X=0)
     public static final float GOAL_WIDTH    = 3.5f;
@@ -39,6 +37,9 @@ public class Table {
     // Limites utiles pour la physique
     public static final float HALF_W        = WIDTH  / 2f;   // 5f
     public static final float HALF_L        = LENGTH / 2f;   // 10f
+
+    // Zone neutre : 1/3 de chaque moitié → Z in [-NEUTRAL_Z, +NEUTRAL_Z]
+    public static final float NEUTRAL_Z     = HALF_L / 4f;   // ≈ 3.33
 
     private final Node tableNode;
     private final AssetManager assetManager;
@@ -51,6 +52,7 @@ public class Table {
 
     private void build() {
         buildSurface();
+        buildNeutralZone();
         buildSideWalls();
         buildEndWalls();
         buildZoneMarkers();
@@ -65,6 +67,20 @@ public class Table {
         Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         mat.setColor("Color", new ColorRGBA(0.04f, 0.25f, 0.06f, 1f)); // vert sombre
         geo.setMaterial(mat);
+        tableNode.attachChild(geo);
+    }
+
+    // Zone neutre jaune semi-transparente entre -NEUTRAL_Z et +NEUTRAL_Z
+    private void buildNeutralZone() {
+        Box shape = new Box(HALF_W, 0.04f, NEUTRAL_Z);
+        Geometry geo = new Geometry("neutralZone", shape);
+        geo.setLocalTranslation(0f, 0.01f, 0f); // juste au-dessus de la surface
+
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setColor("Color", new ColorRGBA(1f, 0.85f, 0f, 0.35f)); // jaune semi-transparent
+        mat.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
+        geo.setMaterial(mat);
+        geo.setQueueBucket(com.jme3.renderer.queue.RenderQueue.Bucket.Transparent);
         tableNode.attachChild(geo);
     }
 
@@ -87,14 +103,11 @@ public class Table {
 
     // Murs de fond avec ouverture de but (deux segments par extrémité)
     private void buildEndWalls() {
-        // Longueur d'un segment de mur de chaque côté de l'ouverture
-        float sidelen = (WIDTH - GOAL_WIDTH) / 2f;       // 3.25f
-        float xOffset = GOAL_WIDTH / 2f + sidelen / 2f;  // 1.75 + 1.625 = 3.375f
+        float sidelen = (WIDTH - GOAL_WIDTH) / 2f;
+        float xOffset = GOAL_WIDTH / 2f + sidelen / 2f;
 
         Material mat = wallMaterial();
 
-        // side = -1 → mur côté joueur 1 (Z négatif)
-        // side = +1 → mur côté joueur 2 (Z positif)
         for (int side : new int[]{-1, 1}) {
             float zPos = side * (HALF_L + WALL_THICK / 2f);
 
@@ -112,11 +125,16 @@ public class Table {
         }
     }
 
-    // Marquages de zones : ligne médiane + lignes de but uniquement
+    // Marquages : ligne médiane, lignes de but jaunes, traits blancs de zone neutre
     private void buildZoneMarkers() {
-        addHLine("midLine",    new ColorRGBA(1f, 1f, 1f, 1f), 0f);
-        addHLine("goalLineP1", new ColorRGBA(1f, 0.8f, 0f, 1f), -HALF_L);
-        addHLine("goalLineP2", new ColorRGBA(1f, 0.8f, 0f, 1f),  HALF_L);
+        // Ligne médiane blanche
+        addHLine("midLine",       new ColorRGBA(1f, 1f, 1f, 1f),          0f);
+        // Limites de la zone neutre — traits blancs
+        addHLine("neutralLineP1", new ColorRGBA(1f, 1f, 1f, 1f), -NEUTRAL_Z);
+        addHLine("neutralLineP2", new ColorRGBA(1f, 1f, 1f, 1f),  NEUTRAL_Z);
+        // Lignes de but jaunes
+        addHLine("goalLineP1",    new ColorRGBA(1f, 0.8f, 0f, 1f), -HALF_L);
+        addHLine("goalLineP2",    new ColorRGBA(1f, 0.8f, 0f, 1f),  HALF_L);
     }
 
     private void addHLine(String name, ColorRGBA color, float zPos) {

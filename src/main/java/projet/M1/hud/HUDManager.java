@@ -28,8 +28,8 @@ public class HUDManager {
     // Pour P1 (Z négatif) l'ancre se retrouve côté ligne centrale → bien.
     // Pour P2 (Z positif) l'ancre se retrouve côté ligne de but → on compense
     // en rapprochant Z_P2 pour que les deux baselines soient symétriques / ~3.5 u de la ligne.
-    private static final float Z_P1 = -5f;
-    private static final float Z_P2 =  1f;
+    private static final float Z_P1 = -8f;
+    private static final float Z_P2 =  3f;
 
     private final BitmapText scoreP1Text;
     private final BitmapText scoreP2Text;

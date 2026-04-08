@@ -31,16 +31,18 @@ import projet.M1.physics.PhysicsEngine;
  */
 public class Main extends SimpleApplication {
 
-    // TODO: injecter le GameState ici quand il sera créé
-    private Table                table;
-    private Puck                 puck;
-    private Paddle               paddleP1;
-    private Paddle               paddleP2;
-    private PhysicsEngine        physics;
-    private GameRules            gameRules;
-    private HUDManager           hud;
-    private PlayerInputHandler   playerInputP1;
-    private PlayerInputHandler   playerInputP2;
+    private Table table;
+    private Puck puck;
+    private Paddle paddleP1;
+    private Paddle paddleP2;
+    private PhysicsEngine physics;
+    private GameRules gameRules;
+    private HUDManager hud;
+    private PlayerInputHandler playerInputP1;
+    private PlayerInputHandler playerInputP2;
+
+    // Vitesse sauvegardée du palet lors de l'ouverture du menu
+    private final Vector3f savedPuckVelocity = new Vector3f();
 
     public static void main(String[] args) {
         Main app = new Main();
@@ -64,10 +66,8 @@ public class Main extends SimpleApplication {
     public void simpleInitApp() {
         flyCam.setEnabled(false);
 
-        // Position initiale : vue isométrique sur la table (10x20 unités)
-        // Table centrée en (0,0,0), s'étend de Z=-10 à Z=+10 et X=-5 à X=+5
-        cam.setLocation(new Vector3f(0f, 28f, 14f));
-        cam.lookAt(Vector3f.ZERO, Vector3f.UNIT_Y);
+        // Position initiale : vue dessus (mode 1v1)
+        setCamTop();
 
         // Fond bleu très sombre, style arène
         viewPort.setBackgroundColor(new ColorRGBA(0.05f, 0.05f, 0.1f, 1f));
@@ -86,7 +86,7 @@ public class Main extends SimpleApplication {
         table = new Table(assetManager);
         rootNode.attachChild(table.getNode());
 
-        // Raquettes — P1 côté Z négatif (bleu), P2 côté Z positif (rouge)
+        // Raquettes — P1 côté Z négatif (rouge), P2 côté Z positif (bleu)
         paddleP1 = new Paddle(assetManager, new ColorRGBA(0.9f, 0.15f, 0.15f, 1f), 0f, -7f); // rouge
         paddleP2 = new Paddle(assetManager, new ColorRGBA(0.1f, 0.3f, 0.9f, 1f),  0f,  7f); // bleu
         rootNode.attachChild(paddleP1.getNode());
@@ -95,43 +95,55 @@ public class Main extends SimpleApplication {
         // Rondelle — au centre de la table
         puck = new Puck(assetManager);
         rootNode.attachChild(puck.getNode());
-        puck.setVelocity(4f, 7f); // vitesse initiale de test
 
-        physics   = new PhysicsEngine(puck, paddleP1, paddleP2);
-        gameRules = new GameRules(puck, physics);
+        // Le palet va du côté bleu ou rouge, 1/2
+        float direction = (new java.util.Random().nextBoolean()) ? 1f : -1f;
+        puck.setVelocity(4f, 7f * direction); // vitesse initiale de test
+
+        physics = new PhysicsEngine(puck, paddleP1, paddleP2);
+        gameRules = new GameRules(puck, physics, paddleP1, paddleP2);
         physics.setGameRules(gameRules);
-        hud       = new HUDManager(assetManager, rootNode, gameRules);
+        hud = new HUDManager(assetManager, rootNode, gameRules);
+
         // Rouge (P1) : ZQSD — Bleu (P2) : flèches
         playerInputP1 = new PlayerInputHandler(inputManager, paddleP1, "p1_",
-            KeyInput.KEY_W, KeyInput.KEY_S, KeyInput.KEY_A, KeyInput.KEY_D);
+                KeyInput.KEY_W, KeyInput.KEY_S, KeyInput.KEY_A, KeyInput.KEY_D);
         playerInputP2 = new PlayerInputHandler(inputManager, paddleP2, "p2_",
-            KeyInput.KEY_UP, KeyInput.KEY_DOWN, KeyInput.KEY_LEFT, KeyInput.KEY_RIGHT);
+                KeyInput.KEY_UP, KeyInput.KEY_DOWN, KeyInput.KEY_LEFT, KeyInput.KEY_RIGHT);
 
         setupCameraKeys();
         setupEscKey();
 
         System.out.println("=== Air Hockey - JME3 initialisé ===");
-        System.out.println("Caméras : [1] dessus  [2] côté largeur  [3] côté longueur");
+        System.out.println("Caméras : [1] dessus  [2] côté longueur");
         System.out.println("[Echap] Menu pause");
+
+        // Enlever le carré avec infos en bas à gauche
+        setDisplayStatView(false);
+        setDisplayFps(false);
     }
 
     // --- Presets de caméra ---
-    // Table : X in [-5, +5], Z in [-10, +10], surface à Y=0
 
     void setCamTop() {
-        // Vue du dessus, axe Y, centrée sur la table
         cam.setLocation(new Vector3f(0f, 30f, 0f));
         cam.lookAt(Vector3f.ZERO, Vector3f.UNIT_Z.negate());
-    }
-
-    void setCamSideWidth() {
-        cam.setLocation(new Vector3f(-18f, 10f, 0f));
-        cam.lookAt(Vector3f.ZERO, Vector3f.UNIT_Y);
     }
 
     void setCamSideLength() {
         cam.setLocation(new Vector3f(0f, 7f, 19f));
         cam.lookAt(Vector3f.ZERO, Vector3f.UNIT_Y);
+    }
+
+    // --- Sauvegarde / restauration de la vitesse du palet ---
+
+    public void savePuckVelocity() {
+        savedPuckVelocity.set(puck.getVelocity());
+        puck.setVelocity(0f, 0f);
+    }
+
+    public void restorePuckVelocity() {
+        puck.setVelocity(savedPuckVelocity.x, savedPuckVelocity.z);
     }
 
     private void setupEscKey() {
@@ -146,6 +158,7 @@ public class Main extends SimpleApplication {
             if (existing != null) {
                 existing.resume(); // ESC ferme le menu aussi
             } else {
+                savePuckVelocity(); // stoppe et sauvegarde la vitesse du palet
                 stateManager.attach(new MenuState());
             }
         }, "pause");
@@ -154,18 +167,16 @@ public class Main extends SimpleApplication {
     private void setupCameraKeys() {
         inputManager.addMapping("cam1", new KeyTrigger(KeyInput.KEY_1));
         inputManager.addMapping("cam2", new KeyTrigger(KeyInput.KEY_2));
-        inputManager.addMapping("cam3", new KeyTrigger(KeyInput.KEY_3));
 
         ActionListener camListener = (name, isPressed, tpf) -> {
             if (!isPressed) return;
             switch (name) {
                 case "cam1" -> setCamTop();
-                case "cam2" -> setCamSideWidth();
-                case "cam3" -> setCamSideLength();
+                case "cam2" -> setCamSideLength();
             }
         };
 
-        inputManager.addListener(camListener, "cam1", "cam2", "cam3");
+        inputManager.addListener(camListener, "cam1", "cam2");
     }
 
     @Override
@@ -173,8 +184,9 @@ public class Main extends SimpleApplication {
         gameRules.update(tpf);
         hud.update();
 
-        // Pendant la pause après un but, on fige les inputs et la physique
-        if (gameRules.getState() == GameRules.State.PLAYING) {
+        // Figer inputs et physique pendant la pause après un but OU pendant le décompte
+        if (gameRules.getState() == GameRules.State.PLAYING
+                && stateManager.getState(CountdownState.class) == null) {
             playerInputP1.update(tpf);
             playerInputP2.update(tpf);
             physics.update(tpf);

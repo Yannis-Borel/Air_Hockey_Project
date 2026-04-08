@@ -12,4 +12,4 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "=== Lancement du jeu ==="
-java -XstartOnFirstThread -jar target/air-hockey-1.0-SNAPSHOT.jar
+java -jar target/air-hockey-1.0-SNAPSHOT.jar

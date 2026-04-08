@@ -1,6 +1,7 @@
 package projet.M1.game;
 
 import com.jme3.math.Vector3f;
+import projet.M1.entities.Paddle;
 import projet.M1.entities.Puck;
 import projet.M1.entities.Table;
 import projet.M1.physics.PhysicsEngine;
@@ -15,32 +16,37 @@ import projet.M1.physics.PhysicsEngine;
  *   - Premier à 12 points → victoire
  *   - Rondelle bloquée 5s → remise en jeu côté du serveur
  *   - Après un but : pause 2s puis remise en jeu côté du joueur qui a concédé
+ *   - Après un but : les raquettes reviennent à leur position initiale
  */
 public class GameRules {
 
     public enum State { PLAYING, GOAL_PAUSE, GAME_OVER }
 
-    public static final int   WIN_SCORE           = 12;
+    public static final int    WIN_SCORE           = 12;
     private static final float GOAL_PAUSE_DURATION = 2f;
     private static final float STUCK_TIMEOUT       = 5f;
 
-    private int   scoreP1   = 0;
-    private int   scoreP2   = 0;
-    private State state      = State.PLAYING;
-    private float pauseTimer = 0f;
-    private float stuckTimer = 0f;
-    private int   nextServer = 1;   // qui sert après le prochain but
-    private int   lastTouched = 0;  // dernier joueur à avoir touché la rondelle (0 = personne)
+    private int   scoreP1    = 0;
+    private int   scoreP2    = 0;
+    private State state       = State.PLAYING;
+    private float pauseTimer  = 0f;
+    private float stuckTimer  = 0f;
+    private int   nextServer  = 1;
+    private int   lastTouched = 0;
 
     private String goalMessage = "";
     private int    lastScorer  = 0;
 
     private final Puck          puck;
     private final PhysicsEngine physics;
+    private final Paddle        paddleP1;
+    private final Paddle        paddleP2;
 
-    public GameRules(Puck puck, PhysicsEngine physics) {
-        this.puck    = puck;
-        this.physics = physics;
+    public GameRules(Puck puck, PhysicsEngine physics, Paddle paddleP1, Paddle paddleP2) {
+        this.puck     = puck;
+        this.physics  = physics;
+        this.paddleP1 = paddleP1;
+        this.paddleP2 = paddleP2;
     }
 
     // Appelé par PhysicsEngine quand une raquette touche la rondelle
@@ -58,9 +64,9 @@ public class GameRules {
 
     private void updatePlaying(float tpf) {
         if (physics.isGoalP1()) {
-            handleGoal(1); // rondelle dans camp P1
+            handleGoal(1);
         } else if (physics.isGoalP2()) {
-            handleGoal(2); // rondelle dans camp P2
+            handleGoal(2);
         }
 
         // Rondelle bloquée → remise en jeu après STUCK_TIMEOUT secondes
@@ -79,13 +85,13 @@ public class GameRules {
     /**
      * camp = camp dans lequel la rondelle est entrée (1 = camp P1, 2 = camp P2).
      *
-     * Cas normal    : l'adversaire marque +1
-     * Auto-but      : le joueur concerné perd 1 pt (min 0), adversaire ne gagne rien
+     * Cas normal : l'adversaire marque +1
+     * Auto-but   : le joueur concerné perd 1 pt (min 0)
      */
     private void handleGoal(int camp) {
         puck.setVelocity(0, 0);
 
-        boolean ownGoal = (lastTouched == camp); // P1 frappe dans son propre camp
+        boolean ownGoal = (lastTouched == camp);
 
         if (ownGoal) {
             if (camp == 1) {
@@ -111,9 +117,11 @@ public class GameRules {
 
         System.out.println(goalMessage);
 
-        // Le joueur qui a concédé sert ensuite — la balle va directement en position de service
+        // Le joueur qui a concédé sert ensuite
         nextServer = camp;
-        resetPuck(nextServer);
+
+        // Remettre les raquettes et le palet en position initiale
+        resetAll(nextServer);
 
         if (scoreP1 >= WIN_SCORE || scoreP2 >= WIN_SCORE) {
             state = State.GAME_OVER;
@@ -127,15 +135,22 @@ public class GameRules {
     private void updateGoalPause(float tpf) {
         pauseTimer += tpf;
         if (pauseTimer >= GOAL_PAUSE_DURATION) {
-            resetPuck(nextServer);
             state = State.PLAYING;
         }
     }
 
     /**
-     * Replace la rondelle en position de service côté du joueur server.
-     * server = 1 → côté P1 (Z négatif), server = 2 → côté P2 (Z positif)
+     * Replace la rondelle et les deux raquettes en position initiale.
+     * Le palet est placé côté du serveur (Z = ±HALF_L/2),
+     * les raquettes reviennent à leur position de départ (Z = ±7).
+     * Pas de risque de collision : palet à Z=±5, raquettes à Z=±7.
      */
+    private void resetAll(int server) {
+        resetPuck(server);
+        paddleP1.resetPosition();
+        paddleP2.resetPosition();
+    }
+
     public void resetPuck(int server) {
         float z = (server == 1) ? -(Table.HALF_L / 2f) : (Table.HALF_L / 2f);
         puck.setPosition(0f, z);
@@ -144,12 +159,12 @@ public class GameRules {
     }
 
     // Getters utilisés par HUD et Main
-    public State  getState()       { return state; }
-    public int    getScoreP1()     { return scoreP1; }
-    public int    getScoreP2()     { return scoreP2; }
-    public String getGoalMessage() { return goalMessage; }
-    public int    getLastScorer()  { return lastScorer; }
-    public float  getPauseTimer()  { return pauseTimer; }
+    public State  getState()         { return state; }
+    public int    getScoreP1()       { return scoreP1; }
+    public int    getScoreP2()       { return scoreP2; }
+    public String getGoalMessage()   { return goalMessage; }
+    public int    getLastScorer()    { return lastScorer; }
+    public float  getPauseTimer()    { return pauseTimer; }
     public float  getPauseDuration() { return GOAL_PAUSE_DURATION; }
-    public boolean isGameOver()    { return state == State.GAME_OVER; }
+    public boolean isGameOver()      { return state == State.GAME_OVER; }
 }
