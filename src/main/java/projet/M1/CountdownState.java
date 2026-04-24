@@ -4,25 +4,19 @@ import com.jme3.app.Application;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.AbstractAppState;
 import com.jme3.app.state.AppStateManager;
-import com.jme3.font.BitmapFont;
-import com.jme3.font.BitmapText;
 import com.jme3.math.ColorRGBA;
 import com.jme3.scene.Node;
+import projet.M1.hud.CrispLabel;
 
-/**
- * Affiche un décompte 3 → 2 → 1 → GO! au centre de l'écran.
- * Se retire automatiquement une fois terminé.
- * Restaure la vitesse du palet sauvegardée dans Main à la fin du décompte.
- */
 public class CountdownState extends AbstractAppState {
 
     private SimpleApplication app;
     private final Main mainApp;
     private Node guiNode;
-    private BitmapText countText;
+    private CrispLabel countLabel;
 
     private float timer = 0f;
-    private int count = 3;   // commence à 3
+    private int   count = 3;
 
     private int screenW, screenH;
 
@@ -38,12 +32,9 @@ public class CountdownState extends AbstractAppState {
         screenW = app.getContext().getSettings().getWidth();
         screenH = app.getContext().getSettings().getHeight();
 
-        BitmapFont font = app.getAssetManager().loadFont("Interface/Fonts/Default.fnt");
-        countText = new BitmapText(font);
-        countText.setSize(font.getCharSet().getRenderedSize() * 6f);
+        countLabel = new CrispLabel(app.getAssetManager(), 120f, ColorRGBA.White);
         updateDisplay();
-        center();
-        guiNode.attachChild(countText);
+        guiNode.attachChild(countLabel);
     }
 
     @Override
@@ -55,39 +46,34 @@ public class CountdownState extends AbstractAppState {
         count--;
 
         if (count < 0) {
-            // Décompte terminé : on se retire, le jeu reprend
             app.getStateManager().detach(this);
             return;
         }
 
         updateDisplay();
-        center();
     }
 
     private void updateDisplay() {
+        ColorRGBA color;
+        String    text;
         if (count > 0) {
-            countText.setText(String.valueOf(count));
-            countText.setColor(new ColorRGBA(1f, 0.75f, 0.1f, 1f)); // orange
+            color = new ColorRGBA(1f, 0.75f, 0.1f, 1f);
+            text  = String.valueOf(count);
         } else {
-            countText.setText("GO!");
-            countText.setColor(new ColorRGBA(0.2f, 1f, 0.3f, 1f));  // vert
+            color = new ColorRGBA(0.2f, 1f, 0.3f, 1f);
+            text  = "GO!";
         }
-    }
-
-    // Recentre le texte à chaque changement (la largeur varie entre "3" et "GO!")
-    private void center() {
-        countText.setLocalTranslation(
-                screenW / 2f - countText.getLineWidth() / 2f,
-                screenH / 2f + countText.getHeight() / 2f,
-                2f
-        );
+        countLabel.setColorAndText(color, text);
+        countLabel.setLocalTranslation(
+                screenW / 2f - countLabel.getWidth()  / 2f,
+                screenH / 2f + countLabel.getHeight() / 2f,
+                2f);
     }
 
     @Override
     public void cleanup() {
         super.cleanup();
-        guiNode.detachChild(countText);
-        // Restaurer la vitesse du palet sauvegardée avant la pause
+        guiNode.detachChild(countLabel);
         mainApp.restorePuckVelocity();
         app.getInputManager().setCursorVisible(false);
     }

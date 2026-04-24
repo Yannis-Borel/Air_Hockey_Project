@@ -3,7 +3,7 @@
 cd "$(dirname "$0")"
 
 echo "=== Build en cours... ==="
-mvn package -q 2>/dev/null
+mvn clean package -q 2>/dev/null
 
 if [ $? -ne 0 ]; then
     echo "=== BUILD ECHOUE — relance sans -q pour voir les erreurs ==="
@@ -12,4 +12,4 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "=== Lancement du jeu ==="
-java -jar target/air-hockey-1.0-SNAPSHOT.jar
+java -XstartOnFirstThread -Djava.awt.headless=true -jar target/air-hockey-1.0-SNAPSHOT.jar

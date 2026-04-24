@@ -6,6 +6,8 @@ import projet.M1.entities.Puck;
 import projet.M1.entities.Table;
 import projet.M1.physics.PhysicsEngine;
 
+import java.util.Random;
+
 /**
  * Gère les règles du jeu : scores, buts, remises en jeu, victoire.
  *
@@ -22,17 +24,21 @@ public class GameRules {
 
     public enum State { PLAYING, GOAL_PAUSE, GAME_OVER }
 
-    public static final int    WIN_SCORE           = 12;
-    private static final float GOAL_PAUSE_DURATION = 2f;
-    private static final float STUCK_TIMEOUT       = 5f;
+    public static final int    WIN_SCORE         = 5;
+    private static final float GOAL_PAUSE_DURATION  = 2f;
+    private static final float STUCK_TIMEOUT        = 1.5f;
+    private static final float NEUTRAL_STALL_TIMEOUT = 2.0f;
 
     private int   scoreP1    = 0;
     private int   scoreP2    = 0;
     private State state       = State.PLAYING;
-    private float pauseTimer  = 0f;
-    private float stuckTimer  = 0f;
-    private int   nextServer  = 1;
+    private float pauseTimer       = 0f;
+    private float stuckTimer       = 0f;
+    private float neutralStallTimer = 0f;
+    private int   nextServer       = 1;
     private int   lastTouched = 0;
+
+    private final Random random = new Random();
 
     private String goalMessage = "";
     private int    lastScorer  = 0;
@@ -69,16 +75,37 @@ public class GameRules {
             handleGoal(2);
         }
 
-        // Rondelle bloquée → remise en jeu après STUCK_TIMEOUT secondes
         Vector3f vel = puck.getVelocity();
-        if (vel.x * vel.x + vel.z * vel.z < 0.01f) {
+        float speed2 = vel.x * vel.x + vel.z * vel.z;
+
+        // Rondelle bloquée → remise en jeu après STUCK_TIMEOUT secondes
+        if (speed2 < 0.01f) {
             stuckTimer += tpf;
             if (stuckTimer >= STUCK_TIMEOUT) {
                 resetPuck(nextServer);
-                stuckTimer = 0f;
+                float dirZ = (nextServer == 1) ? 1f : -1f;
+                float dirX = (random.nextFloat() - 0.5f) * 7f;
+                puck.setVelocity(dirX, dirZ * 8f);
+                stuckTimer       = 0f;
+                neutralStallTimer = 0f;
             }
         } else {
             stuckTimer = 0f;
+        }
+
+        // Balle qui stagne en zone neutre (vitesse Z trop faible) →
+        // mini boost vers le camp le plus proche
+        boolean inNeutral = Math.abs(puck.getPosition().z) < Table.NEUTRAL_Z;
+        if (inNeutral && speed2 > 0.01f && Math.abs(vel.z) < 1.5f) {
+            neutralStallTimer += tpf;
+            if (neutralStallTimer >= NEUTRAL_STALL_TIMEOUT) {
+                float pz   = puck.getPosition().z;
+                float dirZ = (pz >= 0f) ? 1f : -1f; // vers le camp le plus proche
+                puck.setVelocity(vel.x, dirZ * 5f);
+                neutralStallTimer = 0f;
+            }
+        } else {
+            neutralStallTimer = 0f;
         }
     }
 
@@ -94,6 +121,7 @@ public class GameRules {
         boolean ownGoal = (lastTouched == camp);
 
         if (ownGoal) {
+            // Auto-but : le joueur perd 1 point (min 0), conformément aux règles
             if (camp == 1) {
                 scoreP1 = Math.max(0, scoreP1 - 1);
                 goalMessage = "Auto-but P1 ! P1 : " + scoreP1 + " - P2 : " + scoreP2;
@@ -158,13 +186,35 @@ public class GameRules {
         lastTouched = 0;
     }
 
+    /**
+     * Remet le jeu à zéro : scores, état, positions.
+     * Appelé par Main.restartGame() depuis l'écran Game Over.
+     */
+    public void reset() {
+        scoreP1          = 0;
+        scoreP2          = 0;
+        state            = State.PLAYING;
+        pauseTimer        = 0f;
+        stuckTimer        = 0f;
+        neutralStallTimer = 0f;
+        nextServer        = 1;
+        lastTouched = 0;
+        lastScorer  = 0;
+        goalMessage = "";
+        resetAll(nextServer);
+        float dir = (new java.util.Random().nextBoolean()) ? 1f : -1f;
+        puck.setVelocity(5f, 9f * dir);
+    }
+
     // Getters utilisés par HUD et Main
     public State  getState()         { return state; }
     public int    getScoreP1()       { return scoreP1; }
     public int    getScoreP2()       { return scoreP2; }
+    public int    getWinner()        { return scoreP1 >= WIN_SCORE ? 1 : scoreP2 >= WIN_SCORE ? 2 : 0; }
     public String getGoalMessage()   { return goalMessage; }
     public int    getLastScorer()    { return lastScorer; }
     public float  getPauseTimer()    { return pauseTimer; }
     public float  getPauseDuration() { return GOAL_PAUSE_DURATION; }
     public boolean isGameOver()      { return state == State.GAME_OVER; }
+    public int    getLastTouched()   { return lastTouched; }
 }

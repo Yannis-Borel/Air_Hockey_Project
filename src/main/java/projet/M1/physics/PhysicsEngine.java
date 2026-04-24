@@ -9,60 +9,57 @@ import projet.M1.entities.Table;
 import java.util.Random;
 
 /**
- * Moteur physique maison pour l'Air Hockey.
+ * Moteur physique 2D (plan XZ) pour l'Air Hockey.
  *
- * Ce moteur gère :
- *   - L'intégration d'Euler (position += vitesse * tpf)
- *   - Les rebonds sur les 4 bandes (formule de réflexion vectorielle)
- *   - La friction légère simulant le coussin d'air
- *   - La détection de but (la rondelle passe dans l'ouverture du fond)
- *
- * La physique est purement 2D dans le plan XZ.
- * L'axe Y est fixe : la rondelle reste toujours posée sur la table.
+ * Utilise les rayons dynamiques de Puck et Paddle ainsi que la largeur de but
+ * courante de Table pour rester cohérent avec les power-ups et le tournoi.
  */
 public class PhysicsEngine {
 
-    // Friction modérée — la rondelle ralentit visiblement sans s'arrêter trop vite
-    private static final float FRICTION     = 0.35f;
+    private static final float FRICTION    = 0.38f;  // balle glisse plus longtemps
+    private static final float RESTITUTION = 0.92f;  // rebonds plus élastiques
+    private static final float MAX_SPEED   = 22f;
+    private static final float MIN_SPEED   = 0.20f;
 
-    // Restitution : légère perte d'énergie à chaque rebond
-    private static final float RESTITUTION  = 0.88f;
+    private static final float BOUNCE_NOISE = 0.06f;
 
-    // Vitesse max (évite que ça parte dans tous les sens après un smash)
-    private static final float MAX_SPEED    = 20f;
+    // Vitesse minimale de la rondelle après contact avec une raquette
+    private static final float MIN_LAUNCH_SPEED = 5.0f;
 
-    // Vitesse min en dessous de laquelle on considère la rondelle arrêtée
-    private static final float MIN_SPEED    = 0.1f;
+    private static final float SMASH_THRESHOLD = 1.5f;  // déclenchement plus facile
+    private static final float SMASH_SCALE     = 6f;
+    private static final float SMASH_MIN_BOOST = 0.08f;
+    private static final float SMASH_MAX_BOOST = 0.35f;  // frappe puissante +35%
 
-    // Variation max d'angle sur un rebond (en radians) — rend les rebonds moins parfaits
-    private static final float BOUNCE_NOISE = 0.06f;  // ≈ ±3.5°
+    private static final float FLIP_THRESHOLD = 2f;
+    private static final float FLIP_REDUCTION = 0.72f;
 
-    private final Puck    puck;
-    private final Paddle  paddleP1;
-    private final Paddle  paddleP2;
-    private final Random  random = new Random();
+    private static final float LIFT_THRESHOLD  = 2f;
+    private static final float LIFT_SCALE      = 8f;
+    private static final float LIFT_DEFLECTION = 0.30f;
 
-    // Indique si un but vient d'être marqué (lu par GameRules à l'étape 6)
+    private final Puck   puck;
+    private final Paddle paddleP1;
+    private final Paddle paddleP2;
+    private final Table  table;
+    private final Random random = new Random();
+
     private boolean goalP1 = false;
     private boolean goalP2 = false;
 
-    // Référence optionnelle à GameRules pour notifier les touches de raquette
     private projet.M1.game.GameRules gameRules;
 
-    public PhysicsEngine(Puck puck, Paddle paddleP1, Paddle paddleP2) {
+    public PhysicsEngine(Puck puck, Paddle paddleP1, Paddle paddleP2, Table table) {
         this.puck     = puck;
         this.paddleP1 = paddleP1;
         this.paddleP2 = paddleP2;
+        this.table    = table;
     }
 
     public void setGameRules(projet.M1.game.GameRules rules) {
         this.gameRules = rules;
     }
 
-    /**
-     * Mise à jour physique principale — appelée à chaque frame depuis simpleUpdate().
-     * @param tpf time per frame en secondes
-     */
     public void update(float tpf) {
         goalP1 = false;
         goalP2 = false;
@@ -72,17 +69,11 @@ public class PhysicsEngine {
         handleCollisions();
         handlePaddleCollision(paddleP1, 1);
         handlePaddleCollision(paddleP2, 2);
+        handleCollisions();   // 2e passe : corrige si la raquette a poussé la balle dans un mur
+        handleCornerCollisions();
+        escapeWallPins();
     }
 
-    /**
-     * Collision circulaire rondelle / raquette.
-     *
-     * Détection : distance entre centres < Puck.RADIUS + Paddle.RADIUS
-     * Résolution :
-     *   1. On repositionne la rondelle hors de la raquette
-     *   2. On calcule la vitesse relative et on applique une impulsion
-     *      en tenant compte de la vitesse de la raquette (effet smash)
-     */
     private void handlePaddleCollision(Paddle paddle, int playerNum) {
         Vector3f pp  = puck.getPosition();
         Vector3f pdp = paddle.getPosition();
@@ -90,65 +81,84 @@ public class PhysicsEngine {
         float dx   = pp.x - pdp.x;
         float dz   = pp.z - pdp.z;
         float dist = FastMath.sqrt(dx * dx + dz * dz);
-        float minD = Puck.RADIUS + Paddle.RADIUS;
+        float minD = puck.getRadius() + paddle.getRadius();  // rayons dynamiques
 
         if (dist >= minD) return;
 
-        // Normale de séparation (du centre paddle vers centre puck)
         float nx, nz;
-        if (dist < 0.001f) {
-            nx = 0; nz = 1; // cas dégénéré
-        } else {
-            nx = dx / dist;
-            nz = dz / dist;
-        }
+        if (dist < 0.001f) { nx = 0; nz = 1; }
+        else               { nx = dx / dist; nz = dz / dist; }
 
-        // Repositionner la rondelle hors du paddle
         puck.setPosition(pdp.x + nx * minD, pdp.z + nz * minD);
 
-        // Vitesse relative puck - paddle selon la normale
-        Vector3f pv  = puck.getVelocity();
+        Vector3f pv   = puck.getVelocity();
         Vector3f padv = paddle.getVelocity();
-        float relDot = (pv.x - padv.x) * nx + (pv.z - padv.z) * nz;
+        float relDot  = (pv.x - padv.x) * nx + (pv.z - padv.z) * nz;
 
-        // Appliquer l'impulsion seulement si les objets se rapprochent
         if (relDot < 0) {
             float impulse = -(1f + RESTITUTION) * relDot;
-            puck.setVelocity(
-                pv.x + impulse * nx,
-                pv.z + impulse * nz
-            );
-            // Notifier GameRules du dernier joueur à avoir touché la rondelle
+            float vx = pv.x + impulse * nx;
+            float vz = pv.z + impulse * nz;
+
+            float paddleDotN = padv.x * nx + padv.z * nz;
+            float tangX = padv.x - paddleDotN * nx;
+            float tangZ = padv.z - paddleDotN * nz;
+            float tangSpeed = FastMath.sqrt(tangX * tangX + tangZ * tangZ);
+
+            if (paddleDotN > SMASH_THRESHOLD) {
+                float ratio = FastMath.clamp(
+                        (paddleDotN - SMASH_THRESHOLD) / SMASH_SCALE, 0f, 1f);
+                float boost = 1f + SMASH_MIN_BOOST + ratio * (SMASH_MAX_BOOST - SMASH_MIN_BOOST);
+                vx *= boost;
+                vz *= boost;
+            } else if (paddleDotN < -FLIP_THRESHOLD) {
+                vx *= FLIP_REDUCTION;
+                vz *= FLIP_REDUCTION;
+            }
+
+            if (tangSpeed > LIFT_THRESHOLD) {
+                float factor = FastMath.clamp(tangSpeed / LIFT_SCALE, 0f, 1f) * LIFT_DEFLECTION;
+                vx += tangX * factor;
+                vz += tangZ * factor;
+            }
+
+            float speed = FastMath.sqrt(vx * vx + vz * vz);
+            // Garantir une vitesse minimale après contact — chaque frappe a du punch
+            if (speed < MIN_LAUNCH_SPEED) {
+                float s = MIN_LAUNCH_SPEED / Math.max(speed, 0.001f);
+                vx *= s;
+                vz *= s;
+                speed = MIN_LAUNCH_SPEED;
+            }
+            if (speed > MAX_SPEED) {
+                float scale = MAX_SPEED / speed;
+                vx *= scale;
+                vz *= scale;
+            }
+
+            puck.setVelocity(vx, vz);
             if (gameRules != null) gameRules.notifyPaddleTouch(playerNum);
         }
     }
 
-    // Intégration d'Euler : position(t+dt) = position(t) + vitesse(t) * dt
     private void movePuck(float tpf) {
         Vector3f pos = puck.getPosition();
         Vector3f vel = puck.getVelocity();
-        puck.setPosition(
-            pos.x + vel.x * tpf,
-            pos.z + vel.z * tpf
-        );
+        puck.setPosition(pos.x + vel.x * tpf, pos.z + vel.z * tpf);
     }
 
-    // Amortissement + cap de vitesse
     private void applyFriction(float tpf) {
         Vector3f vel = puck.getVelocity();
-
         float factor = 1f - FRICTION * tpf;
         vel.x *= factor;
         vel.z *= factor;
 
-        // Stopper proprement si trop lent
         if (Math.abs(vel.x) < MIN_SPEED && Math.abs(vel.z) < MIN_SPEED) {
             vel.x = 0;
             vel.z = 0;
             return;
         }
 
-        // Plafonner la vitesse
         float speed = FastMath.sqrt(vel.x * vel.x + vel.z * vel.z);
         if (speed > MAX_SPEED) {
             float scale = MAX_SPEED / speed;
@@ -157,11 +167,6 @@ public class PhysicsEngine {
         }
     }
 
-    /**
-     * Ajoute un léger bruit d'angle au vecteur vitesse après rebond.
-     * Rotation 2D dans le plan XZ d'un angle aléatoire en ±BOUNCE_NOISE radians.
-     * Rend les rebonds moins parfaitement spéculaires, plus naturels.
-     */
     private Vector3f addBounceNoise(Vector3f vel) {
         float angle = (random.nextFloat() - 0.5f) * 2f * BOUNCE_NOISE;
         float cos = FastMath.cos(angle);
@@ -173,20 +178,12 @@ public class PhysicsEngine {
         );
     }
 
-    /**
-     * Détection et résolution des collisions avec les bandes et les murs de fond.
-     *
-     * On compare le centre de la rondelle ± rayon avec les limites de la table.
-     * En cas de collision :
-     *   1. On repositionne la rondelle hors de la bande
-     *   2. On applique la formule de réflexion : v' = v - 2(v·n)n
-     */
     private void handleCollisions() {
         Vector3f pos = puck.getPosition();
         Vector3f vel = puck.getVelocity();
-        float r = Puck.RADIUS;
+        float r  = puck.getRadius();                          // rayon dynamique
+        float gw = table.getCurrentGoalWidth();               // largeur de but dynamique
 
-        // --- Bande gauche : normale = (1, 0, 0) ---
         if (pos.x - r < -Table.HALF_W) {
             puck.setPosition(-Table.HALF_W + r, pos.z);
             Vector3f v2 = addBounceNoise(VectorMath.reflect(vel, new Vector3f(1, 0, 0)));
@@ -195,7 +192,6 @@ public class PhysicsEngine {
             vel = puck.getVelocity();
         }
 
-        // --- Bande droite : normale = (-1, 0, 0) ---
         if (pos.x + r > Table.HALF_W) {
             puck.setPosition(Table.HALF_W - r, pos.z);
             Vector3f v2 = addBounceNoise(VectorMath.reflect(vel, new Vector3f(-1, 0, 0)));
@@ -204,10 +200,9 @@ public class PhysicsEngine {
             vel = puck.getVelocity();
         }
 
-        // --- Mur de fond joueur 1 (Z = -HALF_L) : normale = (0, 0, 1) ---
         if (pos.z - r < -Table.HALF_L) {
-            if (Math.abs(pos.x) < Table.GOAL_WIDTH / 2f) {
-                goalP1 = true;  // but dans le camp P1 → point pour P2
+            if (Math.abs(pos.x) < gw / 2f) {
+                goalP1 = true;
             } else {
                 puck.setPosition(pos.x, -Table.HALF_L + r);
                 Vector3f v2 = addBounceNoise(VectorMath.reflect(vel, new Vector3f(0, 0, 1)));
@@ -216,14 +211,67 @@ public class PhysicsEngine {
             pos = puck.getPosition();
         }
 
-        // --- Mur de fond joueur 2 (Z = +HALF_L) : normale = (0, 0, -1) ---
         if (pos.z + r > Table.HALF_L) {
-            if (Math.abs(pos.x) < Table.GOAL_WIDTH / 2f) {
-                goalP2 = true;  // but dans le camp P2 → point pour P1
+            if (Math.abs(pos.x) < gw / 2f) {
+                goalP2 = true;
             } else {
                 puck.setPosition(pos.x, Table.HALF_L - r);
                 Vector3f v2 = addBounceNoise(VectorMath.reflect(vel, new Vector3f(0, 0, -1)));
                 puck.setVelocity(v2.x * RESTITUTION, v2.z * RESTITUTION);
+            }
+        }
+    }
+
+    /**
+     * Empêche la rondelle d'être écrasée dans les coins ou contre les bandes.
+     *
+     * S'active uniquement quand la rondelle est AU CONTACT du mur (eps = 0.02)
+     * pour ne pas déclencher de rebond avant la bande visuellement.
+     * Impose une vitesse sortante minimale pour éviter le coin-pinch.
+     */
+    private void escapeWallPins() {
+        Vector3f pos = puck.getPosition();
+        Vector3f vel = puck.getVelocity();
+        float r    = puck.getRadius();
+        float gw   = table.getCurrentGoalWidth();
+        float eps  = 0.02f;  // marge infime — au contact du mur seulement
+        float minV = 3.5f;
+
+        if (pos.x - r < -Table.HALF_W + eps && vel.x <  minV) vel.x =  minV;
+        if (pos.x + r >  Table.HALF_W - eps && vel.x > -minV) vel.x = -minV;
+
+        boolean outsideGoal = Math.abs(pos.x) >= gw / 2f;
+        if (outsideGoal) {
+            if (pos.z - r < -Table.HALF_L + eps && vel.z <  minV) vel.z =  minV;
+            if (pos.z + r >  Table.HALF_L - eps && vel.z > -minV) vel.z = -minV;
+        }
+    }
+
+    private void handleCornerCollisions() {
+        Vector3f pos = puck.getPosition();
+        Vector3f vel = puck.getVelocity();
+        float r = puck.getRadius();
+        float[] cx = {-Table.HALF_W, Table.HALF_W, -Table.HALF_W, Table.HALF_W};
+        float[] cz = {-Table.HALF_L, -Table.HALF_L, Table.HALF_L, Table.HALF_L};
+
+        for (int i = 0; i < 4; i++) {
+            float dx   = pos.x - cx[i];
+            float dz   = pos.z - cz[i];
+            float dist = FastMath.sqrt(dx * dx + dz * dz);
+            float minD = Table.CORNER_R + r;
+            if (dist >= minD) continue;
+
+            float nx = (dist < 0.001f) ? -Math.signum(cx[i]) : dx / dist;
+            float nz = (dist < 0.001f) ? -Math.signum(cz[i]) : dz / dist;
+            puck.setPosition(cx[i] + nx * minD, cz[i] + nz * minD);
+            pos = puck.getPosition();
+
+            float dot = vel.x * nx + vel.z * nz;
+            if (dot < 0) {
+                vel.x = (vel.x - 2f * dot * nx) * RESTITUTION;
+                vel.z = (vel.z - 2f * dot * nz) * RESTITUTION;
+                puck.setVelocity(vel.x, vel.z);
+                vel = puck.getVelocity();
             }
         }
     }

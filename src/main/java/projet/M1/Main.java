@@ -13,6 +13,7 @@ import projet.M1.entities.Paddle;
 import projet.M1.entities.Puck;
 import projet.M1.entities.Table;
 import projet.M1.game.GameRules;
+import projet.M1.game.PowerUpManager;
 import projet.M1.hud.HUDManager;
 import projet.M1.input.PlayerInputHandler;
 import projet.M1.physics.PhysicsEngine;
@@ -20,29 +21,38 @@ import projet.M1.physics.PhysicsEngine;
 /**
  * Point d'entrée principal du jeu Air Hockey.
  *
- * Architecture globale :
- *   - Main hérite de SimpleApplication (JME3)
- *   - La boucle de jeu principale est gérée par simpleUpdate(float tpf)
- *   - Les entités (table, raquettes, rondelle) seront initialisées dans simpleInitApp()
- *   - Le GameState orchestrera les règles et l'état courant de la partie
+ * Modes de jeu :
+ *   MULTIPLAYER — deux joueurs humains (ZQSD vs flèches)
+ *   SOLO_AI     — un joueur contre une IA, niveau choisi au menu
+ *   TOURNAMENT  — cinq adversaires IA avec modifications de terrain par round
  *
- * Projet M1 Informatique - Université de Toulon
- * Module : Vision par Ordinateur - Pr. Julien SEINTURIER
+ * Power-ups, textures Lighting, et comportements spéciaux du tournoi sont gérés ici.
  */
 public class Main extends SimpleApplication {
 
-    private Table table;
-    private Puck puck;
-    private Paddle paddleP1;
-    private Paddle paddleP2;
-    private PhysicsEngine physics;
-    private GameRules gameRules;
-    private HUDManager hud;
-    private PlayerInputHandler playerInputP1;
-    private PlayerInputHandler playerInputP2;
+    public enum GameMode { MULTIPLAYER, SOLO_AI, TOURNAMENT }
 
-    // Vitesse sauvegardée du palet lors de l'ouverture du menu
+    // ---- Entités de scène ----
+    private Table               table;
+    private Puck                puck;
+    private Paddle              paddleP1;
+    private Paddle              paddleP2;
+    private PhysicsEngine       physics;
+    private GameRules           gameRules;
+    private HUDManager          hud;
+    private PowerUpManager      powerUpManager;
+    private PlayerInputHandler  playerInputP1;
+    private PlayerInputHandler  playerInputP2;
+
+    // ---- État ----
+    private GameMode           currentMode  = null;
+    private AIController       aiController = null;
+    private TournamentManager  tournament   = null;
+
     private final Vector3f savedPuckVelocity = new Vector3f();
+    private boolean        gameOverShown     = false;
+
+    // ---------------------------------------------------------------
 
     public static void main(String[] args) {
         Main app = new Main();
@@ -52,78 +62,271 @@ public class Main extends SimpleApplication {
         settings.setWidth(1280);
         settings.setHeight(720);
         settings.setFrameRate(60);
-        settings.setSamples(4);         // anti-aliasing x4
+        settings.setSamples(4);
         settings.setVSync(true);
         settings.setFullscreen(false);
 
         app.setSettings(settings);
-        app.setShowSettings(false);     // pas de dialog de config au démarrage
+        app.setShowSettings(false);
         app.setPauseOnLostFocus(false);
         app.start();
     }
 
+    // ---------------------------------------------------------------
+
     @Override
     public void simpleInitApp() {
         flyCam.setEnabled(false);
+        setCamSideLength(); // caméra unique : vue latérale
 
-        // Position initiale : vue dessus (mode 1v1)
-        setCamTop();
-
-        // Fond bleu très sombre, style arène
         viewPort.setBackgroundColor(new ColorRGBA(0.05f, 0.05f, 0.1f, 1f));
 
-        // Lumières
+        // Lumières (nécessaires pour Lighting.j3md sur puck/paddles/table)
         AmbientLight ambient = new AmbientLight();
-        ambient.setColor(ColorRGBA.White.mult(0.4f));
+        ambient.setColor(ColorRGBA.White.mult(0.45f));
         rootNode.addLight(ambient);
 
         DirectionalLight sun = new DirectionalLight();
         sun.setDirection(new Vector3f(-0.3f, -1f, -0.5f).normalizeLocal());
-        sun.setColor(ColorRGBA.White.mult(0.9f));
+        sun.setColor(ColorRGBA.White.mult(0.95f));
         rootNode.addLight(sun);
 
         // Table
         table = new Table(assetManager);
         rootNode.attachChild(table.getNode());
 
-        // Raquettes — P1 côté Z négatif (rouge), P2 côté Z positif (bleu)
-        paddleP1 = new Paddle(assetManager, new ColorRGBA(0.9f, 0.15f, 0.15f, 1f), 0f, -7f); // rouge
-        paddleP2 = new Paddle(assetManager, new ColorRGBA(0.1f, 0.3f, 0.9f, 1f),  0f,  7f); // bleu
+        // Raquettes
+        paddleP1 = new Paddle(assetManager, new ColorRGBA(0.9f, 0.15f, 0.15f, 1f), 0f, -7f);
+        paddleP2 = new Paddle(assetManager, new ColorRGBA(0.1f, 0.3f,  0.9f, 1f), 0f,  7f);
         rootNode.attachChild(paddleP1.getNode());
         rootNode.attachChild(paddleP2.getNode());
 
-        // Rondelle — au centre de la table
+        // Rondelle
         puck = new Puck(assetManager);
         rootNode.attachChild(puck.getNode());
 
-        // Le palet va du côté bleu ou rouge, 1/2
-        float direction = (new java.util.Random().nextBoolean()) ? 1f : -1f;
-        puck.setVelocity(4f, 7f * direction); // vitesse initiale de test
-
-        physics = new PhysicsEngine(puck, paddleP1, paddleP2);
+        // Physique + règles
+        physics   = new PhysicsEngine(puck, paddleP1, paddleP2, table);
         gameRules = new GameRules(puck, physics, paddleP1, paddleP2);
         physics.setGameRules(gameRules);
-        hud = new HUDManager(assetManager, rootNode, gameRules);
 
-        // Rouge (P1) : ZQSD — Bleu (P2) : flèches
+        // Power-ups
+        powerUpManager = new PowerUpManager(puck, paddleP1, paddleP2, rootNode, assetManager);
+
+        // HUD
+        int screenW = context.getSettings().getWidth();
+        int screenH = context.getSettings().getHeight();
+        hud = new HUDManager(assetManager, rootNode, guiNode, screenW, screenH, gameRules);
+        hud.setPowerUpManager(powerUpManager);
+
+        // Inputs
         playerInputP1 = new PlayerInputHandler(inputManager, paddleP1, "p1_",
                 KeyInput.KEY_W, KeyInput.KEY_S, KeyInput.KEY_A, KeyInput.KEY_D);
         playerInputP2 = new PlayerInputHandler(inputManager, paddleP2, "p2_",
                 KeyInput.KEY_UP, KeyInput.KEY_DOWN, KeyInput.KEY_LEFT, KeyInput.KEY_RIGHT);
 
-        setupCameraKeys();
         setupEscKey();
 
-        System.out.println("=== Air Hockey - JME3 initialisé ===");
-        System.out.println("Caméras : [1] dessus  [2] côté longueur");
-        System.out.println("[Echap] Menu pause");
-
-        // Enlever le carré avec infos en bas à gauche
         setDisplayStatView(false);
         setDisplayFps(false);
+
+        stateManager.attach(new MainMenuState());
+
+        System.out.println("=== Air Hockey — JME3 initialisé ===");
     }
 
-    // --- Presets de caméra ---
+    // ===============================================================
+    // Méthodes publiques appelées par les menus
+    // ===============================================================
+
+    public void startMultiplayer() {
+        currentMode   = GameMode.MULTIPLAYER;
+        aiController  = null;
+        gameOverShown = false;
+        applyDefaultTableSettings();
+        detachMenus();
+        resetGameAndPowerUps();
+        hud.setTournamentLabel(null);
+        savePuckVelocity();
+        stateManager.attach(new CinematicState(this));
+    }
+
+    public void startSoloAI(AIController.Level level) {
+        currentMode   = GameMode.SOLO_AI;
+        aiController  = new AIController(paddleP1, puck, level);
+        gameOverShown = false;
+        applyDefaultTableSettings();
+        detachMenus();
+        resetGameAndPowerUps();
+        hud.setTournamentLabel(null);
+        savePuckVelocity();
+        stateManager.attach(new CinematicState(this));
+    }
+
+    public void startTournament() {
+        currentMode = GameMode.TOURNAMENT;
+        if (tournament == null) tournament = new TournamentManager();
+        tournament.reset();
+        gameOverShown = false;
+        detachMenus();
+        startTournamentRound();
+    }
+
+    public void startTournamentRound() {
+        TournamentManager.Opponent opp = tournament.getCurrentOpponent();
+
+        // Appliquer les modificateurs de l'adversaire
+        table.setGoalWidth(opp.goalWidth);
+        paddleP1.setNominalRadius(Paddle.RADIUS * opp.paddleScale); // IA = P1
+        paddleP2.setNominalRadius(Paddle.RADIUS);                    // Humain inchangé
+
+        aiController  = new AIController(paddleP1, puck, opp.aiLevel);
+        gameOverShown = false;
+        detachGameOver();
+        resetGameAndPowerUps();
+        hud.forceRefreshScores();
+
+        int round = tournament.getCurrentRound() + 1;
+        int total = tournament.getTotalRounds();
+        hud.setTournamentLabel("Round " + round + "/" + total
+                + "  —  " + opp.name + "  (" + opp.description + ")");
+
+        savePuckVelocity();
+        stateManager.attach(new CinematicState(this));
+    }
+
+    public void returnToMainMenu() {
+        detachGameOver();
+        detachMenus();
+        CountdownState cs = stateManager.getState(CountdownState.class);
+        if (cs != null) stateManager.detach(cs);
+
+        currentMode   = null;
+        aiController  = null;
+        gameOverShown = false;
+
+        applyDefaultTableSettings();
+        resetGameAndPowerUps();
+        puck.setVelocity(0f, 0f);
+        puck.setPosition(0f, 0f);
+        hud.setTournamentLabel(null);
+
+        stateManager.attach(new MainMenuState());
+    }
+
+    // ===============================================================
+    // Fin de partie
+    // ===============================================================
+
+    private void handleGameOver() {
+        gameOverShown = true;
+        int s1 = gameRules.getScoreP1();
+        int s2 = gameRules.getScoreP2();
+
+        switch (currentMode) {
+            case MULTIPLAYER -> {
+                int winner = gameRules.getWinner();
+                ColorRGBA tc = (winner == 1)
+                        ? new ColorRGBA(0.9f, 0.15f, 0.15f, 1f)
+                        : new ColorRGBA(0.1f, 0.5f,  1.0f,  1f);
+                stateManager.attach(new GameOverState(this,
+                        "JOUEUR " + winner + " GAGNE !",   tc,
+                        "Score final  —  P1 : " + s1 + "   P2 : " + s2,
+                        "Rejouer",  this::restartGame,
+                        "Menu",     this::returnToMainMenu));
+            }
+            case SOLO_AI -> {
+                boolean win = (gameRules.getWinner() == 2);
+                stateManager.attach(new GameOverState(this,
+                        win ? "VICTOIRE !" : "DÉFAITE...",
+                        win ? new ColorRGBA(0.1f, 0.5f, 1.0f, 1f)
+                            : new ColorRGBA(0.9f, 0.15f, 0.15f, 1f),
+                        "Score  —  IA : " + s1 + "   Toi : " + s2,
+                        win ? "Rejouer"    : "Réessayer",  this::restartGame,
+                        "Menu",                                  this::returnToMainMenu));
+            }
+            case TOURNAMENT -> handleTournamentGameOver(s1, s2);
+        }
+    }
+
+    private void handleTournamentGameOver(int s1, int s2) {
+        boolean playerWon = (gameRules.getWinner() == 2);
+        TournamentManager.Opponent opp = tournament.getCurrentOpponent();
+
+        if (playerWon) {
+            tournament.nextRound();
+
+            if (tournament.isFinished()) {
+                stateManager.attach(new GameOverState(this,
+                        "TOURNOI TERMINÉ !",
+                        new ColorRGBA(1f, 0.8f, 0f, 1f),
+                        "Tu es le champion d'Air Hockey !",
+                        "Recommencer", this::startTournament,
+                        "Menu",        this::returnToMainMenu));
+            } else {
+                TournamentManager.Opponent next = tournament.getCurrentOpponent();
+                stateManager.attach(new GameOverState(this,
+                        opp.name + " battu !",
+                        new ColorRGBA(0.2f, 0.9f, 0.2f, 1f),
+                        "Prochain : " + next.name + "  —  " + next.description,
+                        "Continuer", this::startTournamentRound,
+                        "Menu",      this::returnToMainMenu));
+            }
+        } else {
+            stateManager.attach(new GameOverState(this,
+                    "DÉFAITE contre " + opp.name,
+                    new ColorRGBA(0.9f, 0.15f, 0.15f, 1f),
+                    opp.description,
+                    "Réessayer", this::startTournamentRound,
+                    "Menu",          this::returnToMainMenu));
+        }
+    }
+
+    public void restartGame() {
+        detachGameOver();
+        gameOverShown = false;
+
+        switch (currentMode) {
+            case MULTIPLAYER, SOLO_AI -> {
+                resetGameAndPowerUps();
+                savePuckVelocity();
+                stateManager.attach(new CinematicState(this));
+            }
+            case TOURNAMENT -> startTournamentRound();
+        }
+    }
+
+    // ===============================================================
+    // Helpers
+    // ===============================================================
+
+    private void resetGameAndPowerUps() {
+        gameRules.reset();
+        powerUpManager.reset();
+    }
+
+    /** Remet la table et les raquettes aux valeurs par défaut (hors tournoi). */
+    private void applyDefaultTableSettings() {
+        table.setGoalWidth(Table.GOAL_WIDTH);
+        paddleP1.setNominalRadius(Paddle.RADIUS);
+        paddleP2.setNominalRadius(Paddle.RADIUS);
+    }
+
+    private void detachMenus() {
+        MainMenuState mm = stateManager.getState(MainMenuState.class);
+        if (mm != null) stateManager.detach(mm);
+        MenuState ms = stateManager.getState(MenuState.class);
+        if (ms != null) stateManager.detach(ms);
+    }
+
+    private void detachGameOver() {
+        GameOverState gos = stateManager.getState(GameOverState.class);
+        if (gos != null) stateManager.detach(gos);
+    }
+
+    // ===============================================================
+    // Caméra
+    // ===============================================================
 
     void setCamTop() {
         cam.setLocation(new Vector3f(0f, 30f, 0f));
@@ -135,7 +338,9 @@ public class Main extends SimpleApplication {
         cam.lookAt(Vector3f.ZERO, Vector3f.UNIT_Y);
     }
 
-    // --- Sauvegarde / restauration de la vitesse du palet ---
+    // ===============================================================
+    // Vélocité du palet (pause / décompte)
+    // ===============================================================
 
     public void savePuckVelocity() {
         savedPuckVelocity.set(puck.getVelocity());
@@ -146,50 +351,63 @@ public class Main extends SimpleApplication {
         puck.setVelocity(savedPuckVelocity.x, savedPuckVelocity.z);
     }
 
-    private void setupEscKey() {
-        // Remplace le comportement par défaut de JME (ESC = quitter)
-        inputManager.deleteMapping(INPUT_MAPPING_EXIT);
-        inputManager.addMapping("pause", new KeyTrigger(KeyInput.KEY_ESCAPE));
-        inputManager.addListener((ActionListener) (name, isPressed, tpf) -> {
-            if (!isPressed) return;
-            // Bloquer ESC pendant le décompte
-            if (stateManager.getState(CountdownState.class) != null) return;
-            MenuState existing = stateManager.getState(MenuState.class);
-            if (existing != null) {
-                existing.resume(); // ESC ferme le menu aussi
-            } else {
-                savePuckVelocity(); // stoppe et sauvegarde la vitesse du palet
-                stateManager.attach(new MenuState());
-            }
-        }, "pause");
-    }
-
-    private void setupCameraKeys() {
-        inputManager.addMapping("cam1", new KeyTrigger(KeyInput.KEY_1));
-        inputManager.addMapping("cam2", new KeyTrigger(KeyInput.KEY_2));
-
-        ActionListener camListener = (name, isPressed, tpf) -> {
-            if (!isPressed) return;
-            switch (name) {
-                case "cam1" -> setCamTop();
-                case "cam2" -> setCamSideLength();
-            }
-        };
-
-        inputManager.addListener(camListener, "cam1", "cam2");
-    }
+    // ===============================================================
+    // Boucle principale
+    // ===============================================================
 
     @Override
     public void simpleUpdate(float tpf) {
         gameRules.update(tpf);
         hud.update();
 
-        // Figer inputs et physique pendant la pause après un but OU pendant le décompte
+        if (currentMode == null) return;
+
+        if (gameRules.isGameOver() && !gameOverShown) {
+            handleGameOver();
+            return;
+        }
+
         if (gameRules.getState() == GameRules.State.PLAYING
-                && stateManager.getState(CountdownState.class) == null) {
-            playerInputP1.update(tpf);
+                && stateManager.getState(CountdownState.class) == null
+                && stateManager.getState(CinematicState.class) == null
+                && stateManager.getState(MenuState.class) == null
+                && !gameOverShown) {
+
             playerInputP2.update(tpf);
+
+            if (currentMode == GameMode.MULTIPLAYER) {
+                playerInputP1.update(tpf);
+            } else if (aiController != null) {
+                aiController.update(tpf);
+            }
+
             physics.update(tpf);
+
+            // Notifier le PowerUpManager du dernier joueur ayant touché la rondelle
+            powerUpManager.notifyPaddleTouch(gameRules.getLastTouched());
+            powerUpManager.update(tpf);
         }
     }
+
+    // ===============================================================
+    // Touches
+    // ===============================================================
+
+    private void setupEscKey() {
+        inputManager.deleteMapping(INPUT_MAPPING_EXIT);
+        inputManager.addMapping("pause", new KeyTrigger(KeyInput.KEY_ESCAPE));
+        inputManager.addListener((ActionListener) (name, isPressed, tpf) -> {
+            if (!isPressed) return;
+            if (currentMode == null) return;
+            if (stateManager.getState(CountdownState.class) != null) return;
+            MenuState existing = stateManager.getState(MenuState.class);
+            if (existing != null) {
+                existing.resume();
+            } else {
+                savePuckVelocity();
+                stateManager.attach(new MenuState());
+            }
+        }, "pause");
+    }
+
 }
