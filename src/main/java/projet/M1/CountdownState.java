@@ -9,11 +9,6 @@ import com.jme3.font.BitmapText;
 import com.jme3.math.ColorRGBA;
 import com.jme3.scene.Node;
 
-/**
- * Affiche un décompte 3 → 2 → 1 → GO! au centre de l'écran.
- * Se retire automatiquement une fois terminé.
- * Restaure la vitesse du palet sauvegardée dans Main à la fin du décompte.
- */
 public class CountdownState extends AbstractAppState {
 
     private SimpleApplication app;
@@ -22,7 +17,7 @@ public class CountdownState extends AbstractAppState {
     private BitmapText countText;
 
     private float timer = 0f;
-    private int count = 3;   // commence à 3
+    private int count = 3;
 
     private int screenW, screenH;
 
@@ -33,7 +28,7 @@ public class CountdownState extends AbstractAppState {
     @Override
     public void initialize(AppStateManager stateManager, Application app) {
         super.initialize(stateManager, app);
-        this.app    = (SimpleApplication) app;
+        this.app = (SimpleApplication) app;
         this.guiNode = this.app.getGuiNode();
         screenW = app.getContext().getSettings().getWidth();
         screenH = app.getContext().getSettings().getHeight();
@@ -55,7 +50,7 @@ public class CountdownState extends AbstractAppState {
         count--;
 
         if (count < 0) {
-            // Décompte terminé : on se retire, le jeu reprend
+            // Décompte fini, le jeu reprend
             app.getStateManager().detach(this);
             return;
         }
@@ -74,7 +69,7 @@ public class CountdownState extends AbstractAppState {
         }
     }
 
-    // Recentre le texte à chaque changement (la largeur varie entre "3" et "GO!")
+    // Recentre le texte à chaque changement
     private void center() {
         countText.setLocalTranslation(
                 screenW / 2f - countText.getLineWidth() / 2f,
@@ -87,6 +82,7 @@ public class CountdownState extends AbstractAppState {
     public void cleanup() {
         super.cleanup();
         guiNode.detachChild(countText);
+
         // Restaurer la vitesse du palet sauvegardée avant la pause
         mainApp.restorePuckVelocity();
         app.getInputManager().setCursorVisible(false);

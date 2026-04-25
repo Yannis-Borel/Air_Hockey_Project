@@ -2,6 +2,7 @@ package projet.M1.physics;
 
 import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
+import projet.M1.bonus.BonusManager;
 import projet.M1.entities.Paddle;
 import projet.M1.entities.Puck;
 import projet.M1.entities.Table;
@@ -16,38 +17,58 @@ import java.util.Random;
  *   - Les rebonds sur les 4 bandes (formule de réflexion vectorielle)
  *   - La friction légère simulant le coussin d'air
  *   - La détection de but (la rondelle passe dans l'ouverture du fond)
+ *   - Le smash  : boost de 5%-15% si la raquette frappe fort et en face
+ *   - Le lift   : spin latéral si la raquette frappe en angle
+ *   - Le flip   : amortissement si la raquette frappe mollement
  *
  * La physique est purement 2D dans le plan XZ.
- * L'axe Y est fixe : la rondelle reste toujours posée sur la table.
+ * La friction est désactivée pendant l'effet Speed+ (consulté via BonusManager).
  */
 public class PhysicsEngine {
 
-    // Friction modérée — la rondelle ralentit visiblement sans s'arrêter trop vite
-    private static final float FRICTION     = 0.35f;
+    // Friction modérée
+    private static final float FRICTION        = 0.35f;
 
     // Restitution : légère perte d'énergie à chaque rebond
-    private static final float RESTITUTION  = 0.88f;
+    private static final float RESTITUTION     = 0.88f;
 
-    // Vitesse max (évite que ça parte dans tous les sens après un smash)
-    private static final float MAX_SPEED    = 20f;
+    // Vitesse max
+    private static final float MAX_SPEED       = 20f;
 
     // Vitesse min en dessous de laquelle on considère la rondelle arrêtée
-    private static final float MIN_SPEED    = 0.1f;
+    private static final float MIN_SPEED       = 0.1f;
 
-    // Variation max d'angle sur un rebond (en radians) — rend les rebonds moins parfaits
-    private static final float BOUNCE_NOISE = 0.06f;  // ≈ ±3.5°
+    // Variation max d'angle sur un rebond (en radians)
+    private static final float BOUNCE_NOISE    = 0.06f;
+
+    // --- Smash ---
+    // Vitesse min de la raquette pour déclencher un smash
+    private static final float SMASH_THRESHOLD = 5f;
+    // Alignement min entre vitesse raquette et normale (produit scalaire normalisé)
+    private static final float SMASH_ALIGN     = 0.7f;
+
+    // --- Lift ---
+    // Composante tangentielle min pour générer du spin
+    private static final float LIFT_THRESHOLD  = 2f;
+    // Intensité max du spin appliqué
+    private static final float LIFT_MAX_SPIN   = 3.5f;
+
+    // --- Flip ---
+    // Vitesse max de la raquette sous laquelle on considère un flip
+    private static final float FLIP_THRESHOLD  = 1.5f;
+    // Coefficient de réduction de vitesse lors d'un flip
+    private static final float FLIP_DAMPING    = 0.55f;
 
     private final Puck    puck;
     private final Paddle  paddleP1;
     private final Paddle  paddleP2;
     private final Random  random = new Random();
 
-    // Indique si un but vient d'être marqué (lu par GameRules à l'étape 6)
     private boolean goalP1 = false;
     private boolean goalP2 = false;
 
-    // Référence optionnelle à GameRules pour notifier les touches de raquette
     private projet.M1.game.GameRules gameRules;
+    private BonusManager bonusManager;
 
     public PhysicsEngine(Puck puck, Paddle paddleP1, Paddle paddleP2) {
         this.puck     = puck;
@@ -59,15 +80,22 @@ public class PhysicsEngine {
         this.gameRules = rules;
     }
 
-    /**
-     * Mise à jour physique principale — appelée à chaque frame depuis simpleUpdate().
-     * @param tpf time per frame en secondes
-     */
+    public void setBonusManager(BonusManager bonusManager) {
+        this.bonusManager = bonusManager;
+    }
+
     public void update(float tpf) {
         goalP1 = false;
         goalP2 = false;
 
-        applyFriction(tpf);
+        // La friction est désactivée pendant l'effet Speed+
+        boolean speedActive = (bonusManager != null && bonusManager.isSpeedActive());
+        if (!speedActive) {
+            applyFriction(tpf);
+        }
+
+        applySpinEffect(tpf);
+        puck.applySpinDecay(tpf);
         movePuck(tpf);
         handleCollisions();
         handlePaddleCollision(paddleP1, 1);
@@ -77,11 +105,16 @@ public class PhysicsEngine {
     /**
      * Collision circulaire rondelle / raquette.
      *
-     * Détection : distance entre centres < Puck.RADIUS + Paddle.RADIUS
-     * Résolution :
-     *   1. On repositionne la rondelle hors de la raquette
-     *   2. On calcule la vitesse relative et on applique une impulsion
-     *      en tenant compte de la vitesse de la raquette (effet smash)
+     * Trois effets possibles selon la vitesse de la raquette :
+     *
+     * SMASH  — raquette rapide et alignée avec la normale :
+     *   boost multiplicatif de 5% à 15% sur la vitesse résultante
+     *
+     * LIFT   — raquette rapide mais en angle (composante tangentielle forte) :
+     *   spin latéral ajouté au palet, crée une déviation progressive
+     *
+     * FLIP   — raquette lente ou immobile :
+     *   impulsion réduite + amortissement → le palet ralentit
      */
     private void handlePaddleCollision(Paddle paddle, int playerNum) {
         Vector3f pp  = puck.getPosition();
@@ -90,14 +123,14 @@ public class PhysicsEngine {
         float dx   = pp.x - pdp.x;
         float dz   = pp.z - pdp.z;
         float dist = FastMath.sqrt(dx * dx + dz * dz);
-        float minD = Puck.RADIUS + Paddle.RADIUS;
+        float minD = Puck.RADIUS + paddle.getCurrentRadius();
 
         if (dist >= minD) return;
 
         // Normale de séparation (du centre paddle vers centre puck)
         float nx, nz;
         if (dist < 0.001f) {
-            nx = 0; nz = 1; // cas dégénéré
+            nx = 0; nz = 1;
         } else {
             nx = dx / dist;
             nz = dz / dist;
@@ -106,30 +139,95 @@ public class PhysicsEngine {
         // Repositionner la rondelle hors du paddle
         puck.setPosition(pdp.x + nx * minD, pdp.z + nz * minD);
 
-        // Vitesse relative puck - paddle selon la normale
-        Vector3f pv  = puck.getVelocity();
+        Vector3f pv   = puck.getVelocity();
         Vector3f padv = paddle.getVelocity();
-        float relDot = (pv.x - padv.x) * nx + (pv.z - padv.z) * nz;
 
-        // Appliquer l'impulsion seulement si les objets se rapprochent
-        if (relDot < 0) {
-            float impulse = -(1f + RESTITUTION) * relDot;
-            puck.setVelocity(
-                pv.x + impulse * nx,
-                pv.z + impulse * nz
-            );
-            // Notifier GameRules du dernier joueur à avoir touché la rondelle
-            if (gameRules != null) gameRules.notifyPaddleTouch(playerNum);
+        // Vitesse relative selon la normale
+        float relDot = (pv.x - padv.x) * nx + (pv.z - padv.z) * nz;
+        if (relDot >= 0) return; // objets qui s'éloignent
+
+        // Vitesse scalaire de la raquette
+        float padSpeed = FastMath.sqrt(padv.x * padv.x + padv.z * padv.z);
+
+        // Composante normale de la vitesse raquette
+        float padNormal = padv.x * nx + padv.z * nz;
+
+        // Composante tangentielle de la vitesse raquette (perpendiculaire à la normale)
+        float padTangX = padv.x - padNormal * nx;
+        float padTangZ = padv.z - padNormal * nz;
+        float padTangSpeed = FastMath.sqrt(padTangX * padTangX + padTangZ * padTangZ);
+
+        // Alignement raquette/normale (1 = parfaitement aligné, 0 = perpendiculaire)
+        float alignment = (padSpeed > 0.01f) ? Math.abs(padNormal) / padSpeed : 0f;
+
+        // --- Calcul de l'impulsion de base ---
+        float impulse = -(1f + RESTITUTION) * relDot;
+        float newVx   = pv.x + impulse * nx;
+        float newVz   = pv.z + impulse * nz;
+
+        if (padSpeed < FLIP_THRESHOLD) {
+            // === FLIP : raquette lente → amortissement ===
+            newVx *= FLIP_DAMPING;
+            newVz *= FLIP_DAMPING;
+            puck.setSpin(0f); // annule le spin en cours
+            System.out.println("[Physics] FLIP — vitesse raquette : " + padSpeed);
+
+        } else if (padTangSpeed > LIFT_THRESHOLD && alignment < SMASH_ALIGN) {
+            // === LIFT : composante tangentielle forte → spin latéral ===
+            // Le spin est proportionnel à la vitesse tangentielle
+            float spinFactor = Math.min(padTangSpeed / LIFT_THRESHOLD, 1f);
+            // Direction du spin : signe de la composante tangentielle en X
+            float spinSign = (padTangX != 0f) ? Math.signum(padTangX) : Math.signum(padTangZ);
+            float newSpin  = spinSign * spinFactor * LIFT_MAX_SPIN;
+            puck.setSpin(newSpin);
+            System.out.println("[Physics] LIFT — spin : " + newSpin);
+
+        } else if (padSpeed >= SMASH_THRESHOLD && alignment >= SMASH_ALIGN) {
+            // === SMASH : coup fort et aligné → boost 5%-15% ===
+            float boost = 1f + 0.05f + random.nextFloat() * 0.10f;
+            newVx *= boost;
+            newVz *= boost;
+            System.out.println("[Physics] SMASH — boost : " + boost);
         }
+
+        puck.setVelocity(newVx, newVz);
+
+        if (gameRules != null) gameRules.notifyPaddleTouch(playerNum);
     }
 
-    // Intégration d'Euler : position(t+dt) = position(t) + vitesse(t) * dt
+    /**
+     * Applique l'effet de spin (lift) à chaque frame.
+     * Le spin dévie la trajectoire du palet latéralement.
+     * La déviation est perpendiculaire à la direction de déplacement courante.
+     */
+    private void applySpinEffect(float tpf) {
+        float spin = puck.getSpin();
+        if (spin == 0f) return;
+
+        Vector3f vel = puck.getVelocity();
+        float speed  = FastMath.sqrt(vel.x * vel.x + vel.z * vel.z);
+        if (speed < MIN_SPEED) return;
+
+        // Vecteur perpendiculaire à la direction de déplacement dans le plan XZ
+        // Si direction = (vx, vz), perpendiculaire = (-vz, vx) normalisé
+        float perpX = -vel.z / speed;
+        float perpZ =  vel.x / speed;
+
+        // Déviation proportionnelle au spin et à la vitesse
+        float deflection = spin * tpf;
+        puck.setVelocity(
+                vel.x + perpX * deflection * speed * 0.08f,
+                vel.z + perpZ * deflection * speed * 0.08f
+        );
+    }
+
+    // Intégration d'Euler
     private void movePuck(float tpf) {
         Vector3f pos = puck.getPosition();
         Vector3f vel = puck.getVelocity();
         puck.setPosition(
-            pos.x + vel.x * tpf,
-            pos.z + vel.z * tpf
+                pos.x + vel.x * tpf,
+                pos.z + vel.z * tpf
         );
     }
 
@@ -141,14 +239,12 @@ public class PhysicsEngine {
         vel.x *= factor;
         vel.z *= factor;
 
-        // Stopper proprement si trop lent
         if (Math.abs(vel.x) < MIN_SPEED && Math.abs(vel.z) < MIN_SPEED) {
             vel.x = 0;
             vel.z = 0;
             return;
         }
 
-        // Plafonner la vitesse
         float speed = FastMath.sqrt(vel.x * vel.x + vel.z * vel.z);
         if (speed > MAX_SPEED) {
             float scale = MAX_SPEED / speed;
@@ -158,72 +254,70 @@ public class PhysicsEngine {
     }
 
     /**
-     * Ajoute un léger bruit d'angle au vecteur vitesse après rebond.
-     * Rotation 2D dans le plan XZ d'un angle aléatoire en ±BOUNCE_NOISE radians.
-     * Rend les rebonds moins parfaitement spéculaires, plus naturels.
+     * Ajoute un léger bruit d'angle au vecteur vitesse après rebond sur une bande.
      */
     private Vector3f addBounceNoise(Vector3f vel) {
         float angle = (random.nextFloat() - 0.5f) * 2f * BOUNCE_NOISE;
         float cos = FastMath.cos(angle);
         float sin = FastMath.sin(angle);
         return new Vector3f(
-            vel.x * cos - vel.z * sin,
-            0,
-            vel.x * sin + vel.z * cos
+                vel.x * cos - vel.z * sin,
+                0,
+                vel.x * sin + vel.z * cos
         );
     }
 
     /**
      * Détection et résolution des collisions avec les bandes et les murs de fond.
-     *
-     * On compare le centre de la rondelle ± rayon avec les limites de la table.
-     * En cas de collision :
-     *   1. On repositionne la rondelle hors de la bande
-     *   2. On applique la formule de réflexion : v' = v - 2(v·n)n
+     * Un rebond sur une bande annule le spin en cours.
      */
     private void handleCollisions() {
         Vector3f pos = puck.getPosition();
         Vector3f vel = puck.getVelocity();
         float r = Puck.RADIUS;
 
-        // --- Bande gauche : normale = (1, 0, 0) ---
+        // --- Bande gauche ---
         if (pos.x - r < -Table.HALF_W) {
             puck.setPosition(-Table.HALF_W + r, pos.z);
             Vector3f v2 = addBounceNoise(VectorMath.reflect(vel, new Vector3f(1, 0, 0)));
             puck.setVelocity(v2.x * RESTITUTION, v2.z * RESTITUTION);
+            puck.setSpin(0f);
             pos = puck.getPosition();
             vel = puck.getVelocity();
         }
 
-        // --- Bande droite : normale = (-1, 0, 0) ---
+        // --- Bande droite ---
         if (pos.x + r > Table.HALF_W) {
             puck.setPosition(Table.HALF_W - r, pos.z);
             Vector3f v2 = addBounceNoise(VectorMath.reflect(vel, new Vector3f(-1, 0, 0)));
             puck.setVelocity(v2.x * RESTITUTION, v2.z * RESTITUTION);
+            puck.setSpin(0f);
             pos = puck.getPosition();
             vel = puck.getVelocity();
         }
 
-        // --- Mur de fond joueur 1 (Z = -HALF_L) : normale = (0, 0, 1) ---
+        // --- Mur de fond P1 (Z = -HALF_L) ---
         if (pos.z - r < -Table.HALF_L) {
             if (Math.abs(pos.x) < Table.GOAL_WIDTH / 2f) {
-                goalP1 = true;  // but dans le camp P1 → point pour P2
+                goalP1 = true;
             } else {
                 puck.setPosition(pos.x, -Table.HALF_L + r);
                 Vector3f v2 = addBounceNoise(VectorMath.reflect(vel, new Vector3f(0, 0, 1)));
                 puck.setVelocity(v2.x * RESTITUTION, v2.z * RESTITUTION);
+                puck.setSpin(0f);
             }
             pos = puck.getPosition();
         }
 
-        // --- Mur de fond joueur 2 (Z = +HALF_L) : normale = (0, 0, -1) ---
+        // --- Mur de fond P2 (Z = +HALF_L) ---
         if (pos.z + r > Table.HALF_L) {
             if (Math.abs(pos.x) < Table.GOAL_WIDTH / 2f) {
-                goalP2 = true;  // but dans le camp P2 → point pour P1
+                goalP2 = true;
             } else {
                 puck.setPosition(pos.x, Table.HALF_L - r);
                 Vector3f v2 = addBounceNoise(VectorMath.reflect(vel, new Vector3f(0, 0, -1)));
                 puck.setVelocity(v2.x * RESTITUTION, v2.z * RESTITUTION);
+                puck.setSpin(0f);
             }
         }
     }

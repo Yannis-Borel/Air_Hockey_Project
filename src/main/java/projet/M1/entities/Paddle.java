@@ -22,6 +22,9 @@ public class Paddle {
 
     private final Node node;
 
+    // Rayon courant (peut être modifié par un bonus)
+    private float currentRadius;
+
     // Position initiale (pour le reset après un but)
     private final float initX;
     private final float initZ;
@@ -33,6 +36,7 @@ public class Paddle {
     public Paddle(AssetManager assetManager, ColorRGBA color, float startX, float startZ) {
         this.initX = startX;
         this.initZ = startZ;
+        this.currentRadius = RADIUS;
 
         node = new Node("paddle");
 
@@ -79,19 +83,34 @@ public class Paddle {
 
     /**
      * Replace la raquette à sa position de départ et annule sa vitesse.
+     * Remet aussi le scale à 1 pour annuler tout effet Paddle+/Paddle-.
      * Appelé par GameRules après un but.
      */
     public void resetPosition() {
         node.setLocalTranslation(initX, HEIGHT / 2f, initZ);
+        node.setLocalScale(1f, 1f, 1f); // annule tout effet de bonus visuel
+        currentRadius = RADIUS;         // remet le rayon physique à la valeur initiale
         velocity.set(0, 0, 0);
         prevPosition.set(node.getLocalTranslation());
+    }
+
+    /**
+     * Applique un facteur multiplicatif au rayon de la raquette.
+     * Modifie visuellement le nœud via setLocalScale.
+     * Utilisé par BonusManager pour les effets Paddle+ et Paddle-.
+     */
+    public void scaleRadius(float factor) {
+        currentRadius *= factor;
+        float scale = currentRadius / RADIUS;
+        node.setLocalScale(scale, 1f, scale); // on ne touche pas à Y (hauteur fixe)
     }
 
     public void setPosition(float x, float z) {
         node.setLocalTranslation(x, HEIGHT / 2f, z);
     }
 
-    public Vector3f getPosition() { return node.getLocalTranslation(); }
-    public Vector3f getVelocity() { return velocity; }
-    public Node     getNode()     { return node; }
+    public Vector3f getPosition()      { return node.getLocalTranslation(); }
+    public Vector3f getVelocity()      { return velocity; }
+    public float    getCurrentRadius() { return currentRadius; }
+    public Node     getNode()          { return node; }
 }
