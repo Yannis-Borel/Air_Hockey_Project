@@ -22,7 +22,7 @@ import projet.M1.physics.PhysicsEngine;
  * Point d'entrée principal du jeu Air Hockey.
  *
  * Modes de jeu :
- *   MULTIPLAYER — deux joueurs humains (ZQSD vs flèches)
+ *   MULTIPLAYER — deux joueurs humains (ZQSD vs flèches), vue du dessus
  *   SOLO_AI     — un joueur contre une IA, niveau choisi au menu
  *   TOURNAMENT  — cinq adversaires IA avec modifications de terrain par round
  *
@@ -77,7 +77,7 @@ public class Main extends SimpleApplication {
     @Override
     public void simpleInitApp() {
         flyCam.setEnabled(false);
-        setCamSideLength(); // caméra unique : vue latérale
+        setCamSideLength(); // caméra unique par défaut
 
         viewPort.setBackgroundColor(new ColorRGBA(0.05f, 0.05f, 0.1f, 1f));
 
@@ -147,8 +147,9 @@ public class Main extends SimpleApplication {
         detachMenus();
         resetGameAndPowerUps();
         hud.setTournamentLabel(null);
+        setCamTop();           // vue du dessus pour voir les deux raquettes
         savePuckVelocity();
-        stateManager.attach(new CinematicState(this));
+        stateManager.attach(new CinematicState(this, currentMode));
     }
 
     public void startSoloAI(AIController.Level level) {
@@ -160,7 +161,7 @@ public class Main extends SimpleApplication {
         resetGameAndPowerUps();
         hud.setTournamentLabel(null);
         savePuckVelocity();
-        stateManager.attach(new CinematicState(this));
+        stateManager.attach(new CinematicState(this, currentMode));
     }
 
     public void startTournament() {
@@ -192,7 +193,7 @@ public class Main extends SimpleApplication {
                 + "  —  " + opp.name + "  (" + opp.description + ")");
 
         savePuckVelocity();
-        stateManager.attach(new CinematicState(this));
+        stateManager.attach(new CinematicState(this, currentMode));
     }
 
     public void returnToMainMenu() {
@@ -210,6 +211,8 @@ public class Main extends SimpleApplication {
         puck.setVelocity(0f, 0f);
         puck.setPosition(0f, 0f);
         hud.setTournamentLabel(null);
+
+        setCamSideLength();
 
         stateManager.attach(new MainMenuState());
     }
@@ -240,7 +243,7 @@ public class Main extends SimpleApplication {
                 stateManager.attach(new GameOverState(this,
                         win ? "VICTOIRE !" : "DÉFAITE...",
                         win ? new ColorRGBA(0.1f, 0.5f, 1.0f, 1f)
-                            : new ColorRGBA(0.9f, 0.15f, 0.15f, 1f),
+                                : new ColorRGBA(0.9f, 0.15f, 0.15f, 1f),
                         "Score  —  IA : " + s1 + "   Toi : " + s2,
                         win ? "Rejouer"    : "Réessayer",  this::restartGame,
                         "Menu",                                  this::returnToMainMenu));
@@ -287,10 +290,15 @@ public class Main extends SimpleApplication {
         gameOverShown = false;
 
         switch (currentMode) {
-            case MULTIPLAYER, SOLO_AI -> {
+            case MULTIPLAYER -> {
                 resetGameAndPowerUps();
                 savePuckVelocity();
-                stateManager.attach(new CinematicState(this));
+                stateManager.attach(new CinematicState(this, currentMode));
+            }
+            case SOLO_AI -> {
+                resetGameAndPowerUps();
+                savePuckVelocity();
+                stateManager.attach(new CinematicState(this, currentMode));
             }
             case TOURNAMENT -> startTournamentRound();
         }
@@ -409,5 +417,4 @@ public class Main extends SimpleApplication {
             }
         }, "pause");
     }
-
 }

@@ -15,6 +15,7 @@ import java.util.Random;
  *   - But dans le camp P1 → P2 marque +1
  *   - But dans le camp P2 → P1 marque +1
  *   - Auto-but (dernier contact = joueur concerné) → ce joueur perd 1 pt (min 0)
+ *     ET l'adversaire gagne +1
  *   - Premier à 12 points → victoire
  *   - Rondelle bloquée 5s → remise en jeu côté du serveur
  *   - Après un but : pause 2s puis remise en jeu côté du joueur qui a concédé
@@ -113,7 +114,7 @@ public class GameRules {
      * camp = camp dans lequel la rondelle est entrée (1 = camp P1, 2 = camp P2).
      *
      * Cas normal : l'adversaire marque +1
-     * Auto-but   : le joueur concerné perd 1 pt (min 0)
+     * Auto-but   : le fautif perd 1 pt (min 0) ET l'adversaire gagne +1
      */
     private void handleGoal(int camp) {
         puck.setVelocity(0, 0);
@@ -121,13 +122,15 @@ public class GameRules {
         boolean ownGoal = (lastTouched == camp);
 
         if (ownGoal) {
-            // Auto-but : le joueur perd 1 point (min 0), conformément aux règles
+            // Auto-but : le fautif perd 1 point ET l'adversaire gagne +1
             if (camp == 1) {
                 scoreP1 = Math.max(0, scoreP1 - 1);
+                scoreP2++;
                 goalMessage = "Auto-but P1 ! P1 : " + scoreP1 + " - P2 : " + scoreP2;
                 lastScorer  = 2;
             } else {
                 scoreP2 = Math.max(0, scoreP2 - 1);
+                scoreP1++;
                 goalMessage = "Auto-but P2 ! P1 : " + scoreP1 + " - P2 : " + scoreP2;
                 lastScorer  = 1;
             }
@@ -169,9 +172,6 @@ public class GameRules {
 
     /**
      * Replace la rondelle et les deux raquettes en position initiale.
-     * Le palet est placé côté du serveur (Z = ±HALF_L/2),
-     * les raquettes reviennent à leur position de départ (Z = ±7).
-     * Pas de risque de collision : palet à Z=±5, raquettes à Z=±7.
      */
     private void resetAll(int server) {
         resetPuck(server);

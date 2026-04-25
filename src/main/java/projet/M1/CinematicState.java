@@ -10,7 +10,9 @@ import com.jme3.renderer.Camera;
 
 /**
  * Cinématique de lancement : la caméra glisse en translation douce de la vue
- * dessus (caméra 1) vers la vue latérale (caméra 2).
+ * dessus (caméra 1) vers la vue finale selon le mode de jeu :
+ *   - MULTIPLAYER  → vue du dessus (reste sur CAM1_POS)
+ *   - SOLO_AI / TOURNAMENT → vue latérale (CAM2_POS)
  *
  * Durée : 2 secondes, interpolation smooth-step.
  * À la fin, attache CountdownState et se retire.
@@ -22,16 +24,18 @@ public class CinematicState extends AbstractAppState {
     private static final Vector3f CAM1_POS = new Vector3f(0f, 30f, 0f);
     private static final Vector3f CAM2_POS = new Vector3f(0f,  7f, 19f);
 
-    private final Main       mainApp;
-    private Camera           cam;
-    private AppStateManager  sm;
+    private final Main          mainApp;
+    private final Main.GameMode mode;
+    private Camera              cam;
+    private AppStateManager     sm;
 
     private Quaternion startRot = new Quaternion();
     private Quaternion endRot   = new Quaternion();
     private float      timer    = 0f;
 
-    public CinematicState(Main mainApp) {
+    public CinematicState(Main mainApp, Main.GameMode mode) {
         this.mainApp = mainApp;
+        this.mode    = mode;
     }
 
     @Override
@@ -40,14 +44,19 @@ public class CinematicState extends AbstractAppState {
         this.sm = stateManager;
         cam = ((SimpleApplication) app).getCamera();
 
+        // Position finale selon le mode
+        Vector3f endPos   = (mode == Main.GameMode.MULTIPLAYER) ? CAM1_POS : CAM2_POS;
+        Vector3f endUp    = (mode == Main.GameMode.MULTIPLAYER)
+                ? new Vector3f(0f, 0f, -1f) : Vector3f.UNIT_Y;
+
         // Capturer la rotation de départ (vue dessus)
         cam.setLocation(CAM1_POS);
         cam.lookAt(Vector3f.ZERO, new Vector3f(0f, 0f, -1f));
         startRot.set(cam.getRotation());
 
-        // Capturer la rotation de fin (vue latérale)
-        cam.setLocation(CAM2_POS);
-        cam.lookAt(Vector3f.ZERO, Vector3f.UNIT_Y);
+        // Capturer la rotation de fin
+        cam.setLocation(endPos);
+        cam.lookAt(Vector3f.ZERO, endUp);
         endRot.set(cam.getRotation());
 
         // Remettre au départ pour que la transition parte de cam1
@@ -63,9 +72,11 @@ public class CinematicState extends AbstractAppState {
         // Smooth-step : accélération douce au départ, décélération douce à l'arrivée
         float s = t * t * (3f - 2f * t);
 
+        Vector3f endPos = (mode == Main.GameMode.MULTIPLAYER) ? CAM1_POS : CAM2_POS;
+
         // Translation de position
         Vector3f pos = new Vector3f();
-        pos.interpolateLocal(CAM1_POS, CAM2_POS, s);
+        pos.interpolateLocal(CAM1_POS, endPos, s);
         cam.setLocation(pos);
 
         // Rotation interpolée (slerp)
@@ -75,7 +86,7 @@ public class CinematicState extends AbstractAppState {
 
         if (timer >= DURATION) {
             // Forcer la position exacte finale
-            cam.setLocation(CAM2_POS);
+            cam.setLocation(endPos);
             cam.setRotation(endRot);
 
             sm.attach(new CountdownState(mainApp));
