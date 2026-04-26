@@ -10,7 +10,7 @@ import com.jme3.scene.Node;
 import com.jme3.scene.shape.Cylinder;
 
 /**
- * La rondelle (puck) — cylindre plat posé sur la surface de la table.
+ * La rondelle (puck) : cylindre plat posé sur la surface de la table.
  *
  * Le radius peut être modifié dynamiquement par les power-ups.
  */
@@ -19,35 +19,40 @@ public class Puck {
     public static final float RADIUS = 0.4f;
     public static final float HEIGHT = 0.15f;
 
-    private final Node     node;
+    private final Node node;
     private final Vector3f velocity = new Vector3f(0, 0, 0);
     private float currentRadius = RADIUS;
 
+    /**
+     * Construit la rondelle avec un corps cylindrique sombre et brillant,
+     * surmonté d'un anneau blanc légèrement décalé en Y pour éviter le z-fighting.
+     * Les matériaux Lighting donnent un rendu réaliste sous les lumières de la scène.
+     */
     public Puck(AssetManager assetManager) {
         node = new Node("puck");
 
         Cylinder shape = new Cylinder(2, 32, RADIUS, HEIGHT, true);
-        Geometry geo   = new Geometry("puckGeo", shape);
+        Geometry geo = new Geometry("puckGeo", shape);
         geo.rotate(-FastMath.HALF_PI, 0, 0);
 
         Material mat = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
         mat.setBoolean("UseMaterialColors", true);
-        mat.setColor("Ambient",   new ColorRGBA(0.04f, 0.04f, 0.04f, 1f));
-        mat.setColor("Diffuse",   new ColorRGBA(0.10f, 0.10f, 0.12f, 1f));
-        mat.setColor("Specular",  new ColorRGBA(0.90f, 0.90f, 0.90f, 1f));
+        mat.setColor("Ambient", new ColorRGBA(0.04f, 0.04f, 0.04f, 1f));
+        mat.setColor("Diffuse", new ColorRGBA(0.10f, 0.10f, 0.12f, 1f));
+        mat.setColor("Specular", new ColorRGBA(0.90f, 0.90f, 0.90f, 1f));
         mat.setFloat("Shininess", 110f);
         geo.setMaterial(mat);
 
-        // Anneau blanc sur le dessus — décalé légèrement en Y
+        // Anneau blanc sur le dessus : décalé légèrement en Y
         Cylinder ring = new Cylinder(2, 32, RADIUS * 0.68f, HEIGHT + 0.01f, true);
         Geometry ringGeo = new Geometry("puckRing", ring);
         ringGeo.rotate(-FastMath.HALF_PI, 0, 0);
         ringGeo.setLocalTranslation(0f, 0.01f, 0f);
         Material ringMat = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
         ringMat.setBoolean("UseMaterialColors", true);
-        ringMat.setColor("Ambient",   new ColorRGBA(0.4f, 0.4f, 0.4f, 1f));
-        ringMat.setColor("Diffuse",   new ColorRGBA(0.9f, 0.9f, 0.9f, 1f));
-        ringMat.setColor("Specular",  new ColorRGBA(1f,   1f,   1f,   1f));
+        ringMat.setColor("Ambient", new ColorRGBA(0.4f, 0.4f, 0.4f, 1f));
+        ringMat.setColor("Diffuse", new ColorRGBA(0.9f, 0.9f, 0.9f, 1f));
+        ringMat.setColor("Specular", new ColorRGBA(1f,   1f,   1f,   1f));
         ringMat.setFloat("Shininess", 80f);
         ringGeo.setMaterial(ringMat);
 
@@ -56,10 +61,16 @@ public class Puck {
         node.setLocalTranslation(0f, HEIGHT / 2f, 0f);
     }
 
+    /**
+     * Positionne la rondelle en (x, z) sur la surface de la table (Y fixe).
+     */
     public void setPosition(float x, float z) {
         node.setLocalTranslation(x, HEIGHT / 2f, z);
     }
 
+    /**
+     * Définit la vitesse de déplacement de la rondelle dans le plan XZ.
+     */
     public void setVelocity(float vx, float vz) {
         velocity.set(vx, 0, vz);
     }
@@ -71,8 +82,15 @@ public class Puck {
         node.setLocalScale(s, 1f, s);
     }
 
-    public float    getRadius()   { return currentRadius; }
+    /** Retourne le rayon effectif courant de la rondelle (incluant les effets power-up). */
+    public float getRadius()   { return currentRadius; }
+
+    /** Retourne la position courante de la rondelle dans la scène. */
     public Vector3f getPosition() { return node.getLocalTranslation(); }
+
+    /** Retourne le vecteur vitesse courant de la rondelle. */
     public Vector3f getVelocity() { return velocity; }
-    public Node     getNode()     { return node; }
+
+    /** Retourne le noeud JME3 de la rondelle à attacher à la scène. */
+    public Node  getNode()     { return node; }
 }

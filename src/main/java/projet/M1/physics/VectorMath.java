@@ -21,14 +21,15 @@ public class VectorMath {
      *
      * Intuition : on inverse uniquement la composante de v perpendiculaire à la surface.
      *
-     * @param velocity vitesse incidente
-     * @param normal   normale unitaire de la surface (doit être normalisée)
+     * @param velocity : vitesse incidente
+     * @param normal : normale unitaire de la surface (doit être normalisée)
      * @return vitesse après rebond
      */
     public static Vector3f reflect(Vector3f velocity, Vector3f normal) {
-        float dot = velocity.dot(normal);          // v · n
-        return velocity.subtract(normal.mult(2f * dot));  // v - 2(v·n)n
+        float dot = velocity.dot(normal); // v * n
+        return velocity.subtract(normal.mult(2f * dot));  // v - 2(v*n)n
     }
 
+    /** Constructeur privé : classe utilitaire non instanciable. */
     private VectorMath() {}
 }

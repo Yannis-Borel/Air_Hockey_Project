@@ -19,26 +19,31 @@ import projet.M1.hud.CrispLabel;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Menu principal affiché au lancement du jeu.
+ * Propose trois modes : Tournoi, Solo vs IA (avec sélecteur de difficulté) et Multijoueur.
+ */
 public class MainMenuState extends AbstractAppState {
 
     private SimpleApplication app;
-    private Main               mainApp;
-    private Node               root;
-    private int                screenW, screenH;
+    private Main mainApp;
+    private Node root;
+    private int screenW, screenH;
 
-    private Node    diffPanel     = null;
+    private Node diffPanel = null;
     private boolean diffPanelOpen = false;
 
+    /** Structure interne représentant un bouton du menu. */
     private static class Btn {
         float x, y, w, h;
         Geometry  bg;
         ColorRGBA base, hover;
-        Runnable  action;
+        Runnable action;
 
         Btn(float x, float y, float w, float h, Geometry bg, ColorRGBA base, Runnable action) {
             this.x = x; this.y = y; this.w = w; this.h = h;
             this.bg = bg; this.action = action;
-            this.base  = base.clone();
+            this.base = base.clone();
             this.hover = new ColorRGBA(
                     Math.min(base.r * 1.4f, 1f),
                     Math.min(base.g * 1.4f, 1f),
@@ -55,7 +60,7 @@ public class MainMenuState extends AbstractAppState {
     @Override
     public void initialize(AppStateManager stateManager, Application app) {
         super.initialize(stateManager, app);
-        this.app     = (SimpleApplication) app;
+        this.app = (SimpleApplication) app;
         this.mainApp = (Main) app;
         screenW = app.getContext().getSettings().getWidth();
         screenH = app.getContext().getSettings().getHeight();
@@ -64,6 +69,10 @@ public class MainMenuState extends AbstractAppState {
         this.app.getInputManager().setCursorVisible(true);
     }
 
+    /**
+     * Construit l'interface du menu principal : fond, titre, sous-titre,
+     * rappel des contrôles et les trois boutons de mode de jeu.
+     */
     private void buildUI() {
         root = new Node("mainMenuRoot");
 
@@ -89,19 +98,20 @@ public class MainMenuState extends AbstractAppState {
         root.attachChild(hint);
 
         float btnW = 290f, btnH = 60f, gap = 76f;
-        float cx   = screenW / 2f - btnW / 2f;
+        float cx = screenW / 2f - btnW / 2f;
         float topY = screenH / 2f + 60f;
 
-        addMainBtn("Tournoi",       cx, topY,          btnW, btnH,
+        addMainBtn("Tournoi", cx, topY, btnW, btnH,
                 new ColorRGBA(0.60f, 0.38f, 0.00f, 0.95f), mainApp::startTournament);
-        addMainBtn("Solo vs IA  ▶", cx, topY - gap,    btnW, btnH,
+        addMainBtn("Solo vs IA  ▶", cx, topY - gap, btnW, btnH,
                 new ColorRGBA(0.10f, 0.45f, 0.10f, 0.95f), this::toggleDiffPanel);
-        addMainBtn("Multijoueur",   cx, topY - gap * 2, btnW, btnH,
+        addMainBtn("Multijoueur", cx, topY - gap * 2, btnW, btnH,
                 new ColorRGBA(0.12f, 0.12f, 0.52f, 0.95f), mainApp::startMultiplayer);
 
         app.getGuiNode().attachChild(root);
     }
 
+    /** Crée un bouton principal et l'ajoute à la liste mainBtns. */
     private void addMainBtn(String text, float x, float y, float w, float h,
                             ColorRGBA color, Runnable action) {
         Geometry bg = addQuad(x, y, w, h, color, 0.5f);
@@ -112,27 +122,32 @@ public class MainMenuState extends AbstractAppState {
         mainBtns.add(new Btn(x, y, w, h, bg, color, action));
     }
 
+    /** Affiche ou masque le panneau de sélection de difficulté IA. */
     private void toggleDiffPanel() {
         if (diffPanelOpen) hideDiffPanel();
-        else               showDiffPanel();
+        else showDiffPanel();
     }
 
+    /**
+     * Construit et affiche le panneau de sélection de difficulté IA
+     * avec un bouton par niveau, positionné à droite du bouton Solo.
+     */
     private void showDiffPanel() {
         hideDiffPanel();
-        diffPanel     = new Node("diffPanel");
+        diffPanel = new Node("diffPanel");
         diffPanelOpen = true;
 
         float btnW = 210f, btnH = 46f, gap = 54f;
         float panelX = screenW / 2f + 165f;
-        float topY   = screenH / 2f + 60f - 76f;
+        float topY = screenH / 2f + 60f - 76f;
 
         AIController.Level[] levels = AIController.Level.values();
         ColorRGBA[] colors = {
-            new ColorRGBA(0.15f, 0.55f, 0.15f, 0.95f),
-            new ColorRGBA(0.10f, 0.40f, 0.55f, 0.95f),
-            new ColorRGBA(0.50f, 0.35f, 0.00f, 0.95f),
-            new ColorRGBA(0.55f, 0.15f, 0.45f, 0.95f),
-            new ColorRGBA(0.60f, 0.08f, 0.08f, 0.95f),
+                new ColorRGBA(0.15f, 0.55f, 0.15f, 0.95f),
+                new ColorRGBA(0.10f, 0.40f, 0.55f, 0.95f),
+                new ColorRGBA(0.50f, 0.35f, 0.00f, 0.95f),
+                new ColorRGBA(0.55f, 0.15f, 0.45f, 0.95f),
+                new ColorRGBA(0.60f, 0.08f, 0.08f, 0.95f),
         };
 
         for (int i = 0; i < levels.length; i++) {
@@ -158,13 +173,15 @@ public class MainMenuState extends AbstractAppState {
         root.attachChild(diffPanel);
     }
 
+    /** Masque et détruit le panneau de sélection de difficulté. */
     private void hideDiffPanel() {
         if (diffPanel != null) root.detachChild(diffPanel);
-        diffPanel     = null;
+        diffPanel = null;
         diffPanelOpen = false;
         diffBtns.clear();
     }
 
+    /** Met à jour l'effet de survol des boutons principaux et du panneau de difficulté. */
     @Override
     public void update(float tpf) {
         Vector2f m = app.getInputManager().getCursorPosition();
@@ -172,6 +189,7 @@ public class MainMenuState extends AbstractAppState {
         if (diffPanelOpen) applyHover(diffBtns, m);
     }
 
+    /** Applique la couleur hover ou base selon la position de la souris. */
     private void applyHover(List<Btn> list, Vector2f m) {
         for (Btn b : list)
             b.bg.getMaterial().setColor("Color", b.hit(m.x, m.y) ? b.hover : b.base);
@@ -186,11 +204,13 @@ public class MainMenuState extends AbstractAppState {
         for (Btn b : mainBtns) if (b.hit(m.x, m.y)) { b.action.run(); return; }
     };
 
+    /** Enregistre le listener de clic souris pour les boutons du menu. */
     private void registerInput() {
         app.getInputManager().addMapping("mmClick", new MouseButtonTrigger(MouseInput.BUTTON_LEFT));
         app.getInputManager().addListener(clickListener, "mmClick");
     }
 
+    /** Crée un quad coloré semi-transparent et l'attache au nœud racine. */
     private Geometry addQuad(float x, float y, float w, float h, ColorRGBA color, float z) {
         Geometry geo = new Geometry("mmq_" + System.nanoTime(), new Quad(w, h));
         Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
@@ -202,12 +222,14 @@ public class MainMenuState extends AbstractAppState {
         return geo;
     }
 
+    /** Crée un CrispLabel avec le texte, la hauteur et la couleur donnés. */
     private CrispLabel label(String text, float h, ColorRGBA color) {
         CrispLabel l = new CrispLabel(app.getAssetManager(), h, color);
         l.setText(text);
         return l;
     }
 
+    /** Détache le menu et libère les ressources au retour en jeu. */
     @Override
     public void cleanup() {
         super.cleanup();

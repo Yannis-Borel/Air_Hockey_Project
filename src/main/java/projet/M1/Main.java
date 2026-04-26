@@ -23,9 +23,9 @@ import projet.M1.physics.PhysicsEngine;
  * Point d'entrée principal du jeu Air Hockey.
  *
  * Modes de jeu :
- *   MULTIPLAYER — deux joueurs humains (ZQSD vs flèches), vue du dessus
- *   SOLO_AI     — un joueur contre une IA, niveau choisi au menu
- *   TOURNAMENT  — cinq adversaires IA avec modifications de terrain par round
+ *   MULTIPLAYER : deux joueurs humains (ZQSD vs flèches), vue du dessus
+ *   SOLO_AI : un joueur contre une IA, niveau choisi au menu
+ *   TOURNAMENT : cinq adversaires IA avec modifications de terrain par round
  *
  * Power-ups, textures Lighting, et comportements spéciaux du tournoi sont gérés ici.
  */
@@ -33,31 +33,31 @@ public class Main extends SimpleApplication {
 
     public enum GameMode { MULTIPLAYER, SOLO_AI, TOURNAMENT }
 
-    // ---- Entités de scène ----
-    private Table               table;
-    private Puck                puck;
-    private Paddle              paddleP1;
-    private Paddle              paddleP2;
-    private PhysicsEngine       physics;
-    private GameRules           gameRules;
-    private HUDManager          hud;
-    private PowerUpManager      powerUpManager;
-    private PlayerInputHandler  playerInputP1;
-    private PlayerInputHandler  playerInputP2;
+    // Entités de scène
+    private Table table;
+    private Puck puck;
+    private Paddle paddleP1;
+    private Paddle paddleP2;
+    private PhysicsEngine physics;
+    private GameRules gameRules;
+    private HUDManager hud;
+    private PowerUpManager powerUpManager;
+    private PlayerInputHandler playerInputP1;
+    private PlayerInputHandler playerInputP2;
 
-    // ---- État ----
-    private GameMode           currentMode  = null;
-    private AIController       aiController = null;
-    private TournamentManager  tournament   = null;
+    // État
+    private GameMode currentMode  = null;
+    private AIController aiController = null;
+    private TournamentManager tournament = null;
 
-    private SoundManager        soundManager;
+    private SoundManager soundManager;
 
     private final Vector3f savedPuckVelocity = new Vector3f();
-    private boolean        gameOverShown     = false;
+    private boolean gameOverShown = false;
 
+    /** Retourne le gestionnaire de sons pour le partager avec les AppStates. */
     public SoundManager getSoundManager() { return soundManager; }
 
-    // ---------------------------------------------------------------
 
     public static void main(String[] args) {
         Main app = new Main();
@@ -77,8 +77,11 @@ public class Main extends SimpleApplication {
         app.start();
     }
 
-    // ---------------------------------------------------------------
 
+    /**
+     * Initialisation JME3 : crée les entités permanentes (table, raquettes, rondelle),
+     * le moteur physique, le HUD, les sons et les inputs, puis affiche le menu principal.
+     */
     @Override
     public void simpleInitApp() {
         flyCam.setEnabled(false);
@@ -111,7 +114,7 @@ public class Main extends SimpleApplication {
         rootNode.attachChild(puck.getNode());
 
         // Physique + règles
-        physics   = new PhysicsEngine(puck, paddleP1, paddleP2, table);
+        physics = new PhysicsEngine(puck, paddleP1, paddleP2, table);
         gameRules = new GameRules(puck, physics, paddleP1, paddleP2);
         physics.setGameRules(gameRules);
 
@@ -145,26 +148,26 @@ public class Main extends SimpleApplication {
         System.out.println("=== Air Hockey — JME3 initialisé ===");
     }
 
-    // ===============================================================
     // Méthodes publiques appelées par les menus
-    // ===============================================================
 
+    /** Démarre une partie multijoueur local avec vue du dessus. */
     public void startMultiplayer() {
-        currentMode   = GameMode.MULTIPLAYER;
-        aiController  = null;
+        currentMode = GameMode.MULTIPLAYER;
+        aiController = null;
         gameOverShown = false;
         applyDefaultTableSettings();
         detachMenus();
         resetGameAndPowerUps();
         hud.setTournamentLabel(null);
-        setCamTop();           // vue du dessus pour voir les deux raquettes
+        setCamTop();  // vue du dessus pour voir les deux raquettes
         savePuckVelocity();
         stateManager.attach(new CinematicState(this, currentMode));
     }
 
+    /** Démarre une partie solo contre l'IA au niveau donné. */
     public void startSoloAI(AIController.Level level) {
-        currentMode   = GameMode.SOLO_AI;
-        aiController  = new AIController(paddleP1, puck, level);
+        currentMode = GameMode.SOLO_AI;
+        aiController = new AIController(paddleP1, puck, level);
         gameOverShown = false;
         applyDefaultTableSettings();
         detachMenus();
@@ -174,6 +177,7 @@ public class Main extends SimpleApplication {
         stateManager.attach(new CinematicState(this, currentMode));
     }
 
+    /** Démarre le tournoi depuis le round 1. */
     public void startTournament() {
         currentMode = GameMode.TOURNAMENT;
         if (tournament == null) tournament = new TournamentManager();
@@ -183,15 +187,20 @@ public class Main extends SimpleApplication {
         startTournamentRound();
     }
 
+    /**
+     * Démarre le round courant du tournoi : applique les modificateurs de l'adversaire
+     * (largeur du but, taille de la raquette IA), crée le contrôleur IA correspondant
+     * et lance la cinématique d'introduction.
+     */
     public void startTournamentRound() {
         TournamentManager.Opponent opp = tournament.getCurrentOpponent();
 
         // Appliquer les modificateurs de l'adversaire
         table.setGoalWidth(opp.goalWidth);
         paddleP1.setNominalRadius(Paddle.RADIUS * opp.paddleScale); // IA = P1
-        paddleP2.setNominalRadius(Paddle.RADIUS);                    // Humain inchangé
+        paddleP2.setNominalRadius(Paddle.RADIUS);   // Humain inchangé
 
-        aiController  = new AIController(paddleP1, puck, opp.aiLevel);
+        aiController = new AIController(paddleP1, puck, opp.aiLevel);
         gameOverShown = false;
         detachGameOver();
         resetGameAndPowerUps();
@@ -206,14 +215,19 @@ public class Main extends SimpleApplication {
         stateManager.attach(new CinematicState(this, currentMode));
     }
 
+    /**
+     * Retourne au menu principal depuis n'importe quel état de jeu.
+     * Nettoie les AppStates actifs, remet les entités à leur état par défaut
+     * et recharge le menu principal.
+     */
     public void returnToMainMenu() {
         detachGameOver();
         detachMenus();
         CountdownState cs = stateManager.getState(CountdownState.class);
         if (cs != null) stateManager.detach(cs);
 
-        currentMode   = null;
-        aiController  = null;
+        currentMode = null;
+        aiController = null;
         gameOverShown = false;
 
         applyDefaultTableSettings();
@@ -227,10 +241,13 @@ public class Main extends SimpleApplication {
         stateManager.attach(new MainMenuState());
     }
 
-    // ===============================================================
-    // Fin de partie
-    // ===============================================================
 
+    // Fin de partie
+
+    /**
+     * Affiche l'écran de fin de partie approprié selon le mode courant.
+     * En tournoi, délègue à handleTournamentGameOver().
+     */
     private void handleGameOver() {
         gameOverShown = true;
         int s1 = gameRules.getScoreP1();
@@ -246,7 +263,7 @@ public class Main extends SimpleApplication {
                         "JOUEUR " + winner + " GAGNE !",   tc,
                         "Score final  —  P1 : " + s1 + "   P2 : " + s2,
                         "Rejouer",  this::restartGame,
-                        "Menu",     this::returnToMainMenu));
+                        "Menu", this::returnToMainMenu));
             }
             case SOLO_AI -> {
                 boolean win = (gameRules.getWinner() == 2);
@@ -255,13 +272,19 @@ public class Main extends SimpleApplication {
                         win ? new ColorRGBA(0.1f, 0.5f, 1.0f, 1f)
                                 : new ColorRGBA(0.9f, 0.15f, 0.15f, 1f),
                         "Score  —  IA : " + s1 + "   Toi : " + s2,
-                        win ? "Rejouer"    : "Réessayer",  this::restartGame,
-                        "Menu",                                  this::returnToMainMenu));
+                        win ? "Rejouer"  : "Réessayer",  this::restartGame,
+                        "Menu", this::returnToMainMenu));
             }
             case TOURNAMENT -> handleTournamentGameOver(s1, s2);
         }
     }
 
+    /**
+     * Gère la fin d'un round de tournoi :
+     * - Victoire intermédiaire : affiche le prochain adversaire
+     * - Victoire finale : affiche l'écran de champion
+     * - Défaite : propose de réessayer le même round
+     */
     private void handleTournamentGameOver(int s1, int s2) {
         boolean playerWon = (gameRules.getWinner() == 2);
         TournamentManager.Opponent opp = tournament.getCurrentOpponent();
@@ -275,7 +298,7 @@ public class Main extends SimpleApplication {
                         new ColorRGBA(1f, 0.8f, 0f, 1f),
                         "Tu es le champion d'Air Hockey !",
                         "Recommencer", this::startTournament,
-                        "Menu",        this::returnToMainMenu));
+                        "Menu", this::returnToMainMenu));
             } else {
                 TournamentManager.Opponent next = tournament.getCurrentOpponent();
                 stateManager.attach(new GameOverState(this,
@@ -283,7 +306,7 @@ public class Main extends SimpleApplication {
                         new ColorRGBA(0.2f, 0.9f, 0.2f, 1f),
                         "Prochain : " + next.name + "  —  " + next.description,
                         "Continuer", this::startTournamentRound,
-                        "Menu",      this::returnToMainMenu));
+                        "Menu", this::returnToMainMenu));
             }
         } else {
             stateManager.attach(new GameOverState(this,
@@ -291,10 +314,14 @@ public class Main extends SimpleApplication {
                     new ColorRGBA(0.9f, 0.15f, 0.15f, 1f),
                     opp.description,
                     "Réessayer", this::startTournamentRound,
-                    "Menu",          this::returnToMainMenu));
+                    "Menu", this::returnToMainMenu));
         }
     }
 
+    /**
+     * Relance une partie depuis l'écran de fin.
+     * En tournoi, relance le round courant ; sinon relance le même mode.
+     */
     public void restartGame() {
         detachGameOver();
         gameOverShown = false;
@@ -314,10 +341,9 @@ public class Main extends SimpleApplication {
         }
     }
 
-    // ===============================================================
     // Helpers
-    // ===============================================================
 
+    /** Remet à zéro les scores, la physique et les power-ups actifs. */
     private void resetGameAndPowerUps() {
         gameRules.reset();
         powerUpManager.reset();
@@ -330,6 +356,7 @@ public class Main extends SimpleApplication {
         paddleP2.setNominalRadius(Paddle.RADIUS);
     }
 
+    /** Détache le menu principal et le menu pause s'ils sont actifs. */
     private void detachMenus() {
         MainMenuState mm = stateManager.getState(MainMenuState.class);
         if (mm != null) stateManager.detach(mm);
@@ -337,42 +364,46 @@ public class Main extends SimpleApplication {
         if (ms != null) stateManager.detach(ms);
     }
 
+    /** Détache l'écran de fin de partie s'il est actif. */
     private void detachGameOver() {
         GameOverState gos = stateManager.getState(GameOverState.class);
         if (gos != null) stateManager.detach(gos);
     }
 
-    // ===============================================================
     // Caméra
-    // ===============================================================
 
+    /** Vue du dessus : utilisée en mode multijoueur pour voir toute la table. */
     void setCamTop() {
         cam.setLocation(new Vector3f(0f, 30f, 0f));
         cam.lookAt(Vector3f.ZERO, Vector3f.UNIT_Z.negate());
     }
 
+    /** Vue latérale légèrement plongeante : utilisée en solo et tournoi. */
     void setCamSideLength() {
         cam.setLocation(new Vector3f(0f, 7f, 19f));
         cam.lookAt(Vector3f.ZERO, Vector3f.UNIT_Y);
     }
 
-    // ===============================================================
     // Vélocité du palet (pause / décompte)
-    // ===============================================================
 
+    /** Sauvegarde la vitesse du palet et l'arrête (pour la pause ou le décompte). */
     public void savePuckVelocity() {
         savedPuckVelocity.set(puck.getVelocity());
         puck.setVelocity(0f, 0f);
     }
 
+    /** Restaure la vitesse du palet sauvegardée (après la pause ou le décompte). */
     public void restorePuckVelocity() {
         puck.setVelocity(savedPuckVelocity.x, savedPuckVelocity.z);
     }
 
-    // ===============================================================
     // Boucle principale
-    // ===============================================================
 
+    /**
+     * Boucle de jeu principale appelée à chaque frame.
+     * Met à jour les règles, le HUD, les inputs et la physique
+     * uniquement si le jeu est en état PLAYING et qu'aucun état bloquant n'est actif.
+     */
     @Override
     public void simpleUpdate(float tpf) {
         gameRules.update(tpf);
@@ -407,10 +438,12 @@ public class Main extends SimpleApplication {
         }
     }
 
-    // ===============================================================
     // Touches
-    // ===============================================================
 
+    /**
+     * Configure la touche ESC : remplace le comportement par défaut JME (quitter)
+     * par l'ouverture/fermeture du menu pause, bloqué pendant le décompte.
+     */
     private void setupEscKey() {
         inputManager.deleteMapping(INPUT_MAPPING_EXIT);
         inputManager.addMapping("pause", new KeyTrigger(KeyInput.KEY_ESCAPE));

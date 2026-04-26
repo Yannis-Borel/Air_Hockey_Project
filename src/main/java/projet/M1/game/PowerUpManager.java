@@ -19,12 +19,12 @@ import java.util.Random;
  * Gère les power-ups du jeu Air Hockey.
  *
  * Six types disponibles :
- *   SPEED_PLUS   — puck ×1.5 (boost instantané)
- *   PUCK_BIGGER  — puck ×1.2 pendant 10s
- *   PUCK_SMALLER — puck ×0.8 pendant 10s
- *   SHOT_ON_GOAL — puck part droit vers le but adverse
- *   PADDLE_PLUS  — raquette du dernier toucheur ×1.1 pendant 20s
- *   PADDLE_MINUS — raquette de l'adversaire ×0.9 pendant 20s
+ *   SPEED_PLUS : puck ×1.5 (boost instantané)
+ *   PUCK_BIGGER : puck ×1.2 pendant 10s
+ *   PUCK_SMALLER : puck ×0.8 pendant 10s
+ *   SHOT_ON_GOAL : puck part droit vers le but adverse
+ *   PADDLE_PLUS : raquette du dernier toucheur ×1.1 pendant 20s
+ *   PADDLE_MINUS : raquette de l'adversaire ×0.9 pendant 20s
  *
  * Un seul token à la fois sur la table, dans la zone neutre.
  * Le token pulse visuellement et disparaît quand la rondelle le touche.
@@ -32,14 +32,14 @@ import java.util.Random;
 public class PowerUpManager {
 
     public enum Type {
-        SPEED_PLUS   ("Vitesse +",   new ColorRGBA(1.0f, 0.55f, 0.0f, 1f)),
-        PUCK_BIGGER  ("Palet +",     new ColorRGBA(0.2f, 0.85f, 0.2f, 1f)),
-        PUCK_SMALLER ("Palet -",     new ColorRGBA(0.75f, 0.2f, 0.9f, 1f)),
-        SHOT_ON_GOAL ("Tir au but",  new ColorRGBA(1.0f, 0.92f, 0.0f, 1f)),
-        PADDLE_PLUS  ("Raquette +",  new ColorRGBA(0.2f, 0.55f, 1.0f, 1f)),
-        PADDLE_MINUS ("Raquette -",  new ColorRGBA(1.0f, 0.2f,  0.2f, 1f));
+        SPEED_PLUS("Vitesse +", new ColorRGBA(1.0f, 0.55f, 0.0f, 1f)),
+        PUCK_BIGGER("Palet +", new ColorRGBA(0.2f, 0.85f, 0.2f, 1f)),
+        PUCK_SMALLER("Palet -", new ColorRGBA(0.75f, 0.2f, 0.9f, 1f)),
+        SHOT_ON_GOAL("Tir au but", new ColorRGBA(1.0f, 0.92f, 0.0f, 1f)),
+        PADDLE_PLUS("Raquette +", new ColorRGBA(0.2f, 0.55f, 1.0f, 1f)),
+        PADDLE_MINUS("Raquette -", new ColorRGBA(1.0f, 0.2f,  0.2f, 1f));
 
-        public final String    label;
+        public final String label;
         public final ColorRGBA color;
 
         Type(String label, ColorRGBA color) {
@@ -48,59 +48,79 @@ public class PowerUpManager {
         }
     }
 
-    private static final float TOKEN_RADIUS   = 0.55f;
+    private static final float TOKEN_RADIUS = 0.55f;
     private static final float SPAWN_INTERVAL = 7f;
-    private static final float SPEED_FACTOR   = 1.5f;
-    private static final float PUCK_BIG       = 1.2f;
-    private static final float PUCK_SMALL     = 0.8f;
-    private static final float PAD_BIG        = 1.45f;  // +45% — bien visible
-    private static final float PAD_SMALL      = 0.60f;  // -40% — clairement réduite
-    private static final float EFFECT_DUR     = 10f;
-    private static final float PADDLE_DUR     = 20f;
+    private static final float SPEED_FACTOR = 1.5f;
+    private static final float PUCK_BIG = 1.2f;
+    private static final float PUCK_SMALL = 0.8f;
+    private static final float PAD_BIG = 1.45f;  // +45% : bien visible
+    private static final float PAD_SMALL = 0.60f;  // -40% : clairement réduite
+    private static final float EFFECT_DUR = 10f;
+    private static final float PADDLE_DUR = 20f;
 
-    private final Puck         puck;
-    private final Paddle       paddleP1, paddleP2;
-    private final Node         rootNode;
+    private final Puck puck;
+    private final Paddle paddleP1, paddleP2;
+    private final Node rootNode;
     private final AssetManager assetManager;
-    private final Random       random = new Random();
+    private final Random  random = new Random();
 
     // Token affiché sur la table
-    private Node     tokenNode = null;
-    private Type     tokenType = null;
-    private float    tokenX, tokenZ;
-    private float    spawnTimer = 4f;
-    private float    tokenAnim  = 0f;
+    private Node tokenNode = null;
+    private Type tokenType = null;
+    private float tokenX, tokenZ;
+    private float spawnTimer = 4f;
+    private float tokenAnim = 0f;
 
     // Effets actifs
-    private boolean speedOn;         private float speedTimer;
-    private boolean puckSizeOn;      private float puckSizeTimer;    private float puckSizeFactor;
-    private boolean p1PadOn;         private float p1PadTimer;       private float p1PadFactor;
-    private boolean p2PadOn;         private float p2PadTimer;       private float p2PadFactor;
+    private boolean speedOn;
+    private float speedTimer;
+    private boolean puckSizeOn;
+    private float puckSizeTimer;
+    private float puckSizeFactor;
+    private boolean p1PadOn;
+    private float p1PadTimer;
+    private float p1PadFactor;
+    private boolean p2PadOn;
+    private float p2PadTimer;
+    private float p2PadFactor;
 
     // Dernier joueur ayant touché la rondelle (1 ou 2, 0 = inconnu)
     private int lastTouched = 0;
 
+    /**
+     * Initialise le gestionnaire de power-ups avec les entités du jeu
+     * et le noeud de scène pour attacher/détacher les tokens visuels.
+     */
     public PowerUpManager(Puck puck, Paddle paddleP1, Paddle paddleP2,
                           Node rootNode, AssetManager assetManager) {
-        this.puck         = puck;
-        this.paddleP1     = paddleP1;
-        this.paddleP2     = paddleP2;
-        this.rootNode     = rootNode;
+        this.puck = puck;
+        this.paddleP1 = paddleP1;
+        this.paddleP2 = paddleP2;
+        this.rootNode = rootNode;
         this.assetManager = assetManager;
     }
 
     /** Appelé par GameRules quand une raquette touche la rondelle. */
     public void notifyPaddleTouch(int player) { lastTouched = player; }
 
+    /**
+     * Mise à jour principale appelée à chaque frame.
+     * Gère l'animation et la collecte du token, puis la durée des effets actifs.
+     */
     public void update(float tpf) {
         updateToken(tpf);
         updateEffects(tpf);
     }
 
-    // ---------------------------------------------------------------
 
+    /**
+     * Met à jour le token visible sur la table :
+     * anime le pulse et la rotation, détecte si la rondelle le collecte,
+     * ou décrémente le timer de spawn si aucun token n'est présent.
+     */
     private void updateToken(float tpf) {
         if (tokenNode != null) {
+
             // Animation : pulse + rotation Y
             tokenAnim += tpf * 2.8f;
             float s = 1f + 0.12f * FastMath.sin(tokenAnim);
@@ -121,6 +141,10 @@ public class PowerUpManager {
         }
     }
 
+    /**
+     * Fait apparaître un token de type aléatoire à une position aléatoire
+     * dans la zone neutre de la table.
+     */
     private void spawnToken() {
         float mx = Table.HALF_W  - 1.3f;
         float mz = Table.NEUTRAL_Z - 0.8f;
@@ -136,15 +160,24 @@ public class PowerUpManager {
         tokenAnim = 0f;
     }
 
+    /**
+     * Collecte le token : le retire de la scène, applique son effet
+     * et relance le timer de spawn pour le prochain token.
+     */
     private void collectToken() {
         rootNode.detachChild(tokenNode);
         tokenNode = null;
-        Type t    = tokenType;
+        Type t = tokenType;
         tokenType = null;
         spawnTimer = SPAWN_INTERVAL;
         applyEffect(t);
     }
 
+    /**
+     * Applique l'effet du power-up collecté selon son type.
+     * Les effets temporaires (taille palet/rondelle) sont accompagnés
+     * d'un timer pour leur expiration.
+     */
     private void applyEffect(Type t) {
         switch (t) {
             case SPEED_PLUS -> {
@@ -156,25 +189,25 @@ public class PowerUpManager {
                     float angle = random.nextFloat() * FastMath.TWO_PI;
                     puck.setVelocity(FastMath.cos(angle) * 9f, FastMath.sin(angle) * 9f);
                 }
-                speedOn    = true;
+                speedOn = true;
                 speedTimer = EFFECT_DUR;
             }
             case PUCK_BIGGER -> {
                 puck.setRadius(Puck.RADIUS * PUCK_BIG);
-                puckSizeOn     = true;
-                puckSizeTimer  = EFFECT_DUR;
+                puckSizeOn = true;
+                puckSizeTimer = EFFECT_DUR;
                 puckSizeFactor = PUCK_BIG;
             }
             case PUCK_SMALLER -> {
                 puck.setRadius(Puck.RADIUS * PUCK_SMALL);
-                puckSizeOn     = true;
-                puckSizeTimer  = EFFECT_DUR;
+                puckSizeOn = true;
+                puckSizeTimer = EFFECT_DUR;
                 puckSizeFactor = PUCK_SMALL;
             }
             case SHOT_ON_GOAL -> {
                 // Envoi vers le but de l'adversaire du dernier toucheur
                 float targetZ = (lastTouched == 1) ? Table.HALF_L : -Table.HALF_L;
-                Vector3f pos  = puck.getPosition();
+                Vector3f pos = puck.getPosition();
                 puck.setPosition(0f, pos.z);
                 puck.setVelocity(0f, targetZ > 0 ? 16f : -16f);
             }
@@ -200,6 +233,10 @@ public class PowerUpManager {
         }
     }
 
+    /**
+     * Décrémente les timers des effets actifs et les annule à expiration
+     * en restaurant les tailles initiales du palet et des raquettes.
+     */
     private void updateEffects(float tpf) {
         if (speedOn) {
             speedTimer -= tpf;
@@ -221,20 +258,41 @@ public class PowerUpManager {
 
     /** Supprime le token visible et annule tous les effets actifs. */
     public void reset() {
-        if (tokenNode != null) { rootNode.detachChild(tokenNode); tokenNode = null; }
-        tokenType  = null;
+        if (tokenNode != null)
+        {
+            rootNode.detachChild(tokenNode);
+            tokenNode = null;
+        }
+
+        tokenType = null;
         spawnTimer = 4f;
-        tokenAnim  = 0f;
-        speedOn    = false;
-        if (puckSizeOn) { puck.setRadius(Puck.RADIUS);             puckSizeOn = false; }
-        if (p1PadOn)    { paddleP1.setRadius(paddleP1.getNominalRadius()); p1PadOn = false; }
-        if (p2PadOn)    { paddleP2.setRadius(paddleP2.getNominalRadius()); p2PadOn = false; }
+        tokenAnim = 0f;
+        speedOn = false;
+        if (puckSizeOn)
+        {
+            puck.setRadius(Puck.RADIUS);
+            puckSizeOn = false;
+        }
+        if (p1PadOn)
+        {
+            paddleP1.setRadius(paddleP1.getNominalRadius());
+            p1PadOn = false;
+        }
+        if (p2PadOn)
+        {
+            paddleP2.setRadius(paddleP2.getNominalRadius());
+            p2PadOn = false;
+        }
         lastTouched = 0;
     }
 
-    // ---------------------------------------------------------------
+
     // Visuels du token (disc coloré + disque blanc central)
 
+    /**
+     * Construit le noeud visuel d'un token power-up :
+     * un disque coloré selon le type et un petit disque blanc central.
+     */
     private Node buildTokenNode(Type type) {
         Node n = new Node("pu_" + type.name());
 
@@ -249,6 +307,9 @@ public class PowerUpManager {
         return n;
     }
 
+    /**
+     * Crée un cylindre plat (disque) avec le rayon, la hauteur et la couleur donnés.
+     */
     private Geometry makeDisc(float radius, float height, ColorRGBA color) {
         Cylinder cyl = new Cylinder(2, 20, radius, height, true);
         Geometry geo = new Geometry("disc_" + System.nanoTime(), cyl);
@@ -259,23 +320,23 @@ public class PowerUpManager {
         return geo;
     }
 
-    // ---------------------------------------------------------------
     // Getters pour HUDManager
 
-    public boolean isSpeedOn()        { return speedOn; }
-    public float   getSpeedTimer()    { return speedTimer; }
+    public boolean isSpeedOn() { return speedOn; }
+    public float getSpeedTimer() { return speedTimer; }
 
-    public boolean isPuckSizeOn()     { return puckSizeOn; }
-    public float   getPuckSizeTimer() { return puckSizeTimer; }
-    public float   getPuckSizeFactor(){ return puckSizeFactor; }
+    public boolean isPuckSizeOn() { return puckSizeOn; }
+    public float getPuckSizeTimer() { return puckSizeTimer; }
+    public float getPuckSizeFactor(){ return puckSizeFactor; }
 
-    public boolean isP1PadOn()        { return p1PadOn; }
-    public float   getP1PadTimer()    { return p1PadTimer; }
-    public float   getP1PadFactor()   { return p1PadFactor; }
+    public boolean isP1PadOn() { return p1PadOn; }
+    public float getP1PadTimer() { return p1PadTimer; }
+    public float getP1PadFactor() { return p1PadFactor; }
 
-    public boolean isP2PadOn()        { return p2PadOn; }
-    public float   getP2PadTimer()    { return p2PadTimer; }
-    public float   getP2PadFactor()   { return p2PadFactor; }
+    public boolean isP2PadOn() { return p2PadOn; }
+    public float getP2PadTimer() { return p2PadTimer; }
+    public float getP2PadFactor() { return p2PadFactor; }
 
-    public Type    getTokenType()     { return tokenType; }
+    /** Retourne le type du token actuellement visible sur la table, ou null si aucun. */
+    public Type getTokenType() { return tokenType; }
 }

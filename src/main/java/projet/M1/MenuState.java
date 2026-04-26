@@ -19,23 +19,28 @@ import projet.M1.hud.CrispLabel;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Menu pause affiché lors de l'appui sur ESC pendant une partie.
+ * Propose deux actions : reprendre la partie (avec décompte) ou quitter vers le menu principal.
+ */
 public class MenuState extends AbstractAppState {
 
     private SimpleApplication app;
     private Node menuRoot;
-    private int  screenW, screenH;
+    private int screenW, screenH;
 
+    /** Structure interne représentant un bouton du menu pause. */
     private static class ButtonInfo {
         float x, y, w, h;
-        Runnable  action;
-        Geometry  bg;
+        Runnable action;
+        Geometry bg;
         ColorRGBA base, hover;
 
         ButtonInfo(float x, float y, float w, float h,
                    Runnable action, Geometry bg, ColorRGBA base) {
             this.x = x; this.y = y; this.w = w; this.h = h;
             this.action = action; this.bg = bg;
-            this.base  = base.clone();
+            this.base = base.clone();
             this.hover = new ColorRGBA(
                     Math.min(base.r * 1.4f, 1f),
                     Math.min(base.g * 1.4f, 1f),
@@ -59,6 +64,10 @@ public class MenuState extends AbstractAppState {
         this.app.getInputManager().setCursorVisible(true);
     }
 
+    /**
+     * Construit l'interface du menu pause : fond semi-transparent,
+     * titre "PAUSE" et deux boutons (Resume / Leave).
+     */
     private void buildMenu() {
         menuRoot = new Node("menuRoot");
         addQuad(0, 0, screenW, screenH, new ColorRGBA(0f, 0f, 0f, 0.65f), 0f);
@@ -69,18 +78,19 @@ public class MenuState extends AbstractAppState {
         menuRoot.attachChild(title);
 
         float btnW = 250f, btnH = 50f;
-        float cx   = screenW / 2f - btnW / 2f;
+        float cx = screenW / 2f - btnW / 2f;
         float topY = screenH / 2f + 80f;
         float gap  = 68f;
 
-        addBtn("Resume", cx, topY,         btnW, btnH,
-                new ColorRGBA(0.1f, 0.5f, 0.1f, 0.95f),   this::resume);
+        addBtn("Resume", cx, topY, btnW, btnH,
+                new ColorRGBA(0.1f, 0.5f, 0.1f, 0.95f), this::resume);
         addBtn("Leave",  cx, topY - gap,   btnW, btnH,
-                new ColorRGBA(0.6f, 0.08f, 0.08f, 0.95f),  this::leave);
+                new ColorRGBA(0.6f, 0.08f, 0.08f, 0.95f),this::leave);
 
         app.getGuiNode().attachChild(menuRoot);
     }
 
+    /** Crée un bouton avec son fond coloré et son label centré. */
     private void addBtn(String text, float x, float y, float w, float h,
                         ColorRGBA color, Runnable action) {
         Geometry bg = addQuad(x, y, w, h, color, 0.5f);
@@ -91,13 +101,16 @@ public class MenuState extends AbstractAppState {
         mainButtons.add(new ButtonInfo(x, y, w, h, action, bg, color));
     }
 
+    /** Ferme le menu pause et relance un décompte avant de reprendre la partie. */
     void resume() {
         app.getStateManager().detach(this);
         app.getStateManager().attach(new CountdownState((Main) app));
     }
 
+    /** Quitte la partie en cours et retourne au menu principal. */
     private void leave() { ((Main) app).returnToMainMenu(); }
 
+    /** Met à jour l'effet de survol des boutons à chaque frame. */
     @Override
     public void update(float tpf) {
         Vector2f m = app.getInputManager().getCursorPosition();
@@ -111,11 +124,13 @@ public class MenuState extends AbstractAppState {
         for (ButtonInfo b : mainButtons) if (b.contains(m.x, m.y)) { b.action.run(); return; }
     };
 
+    /** Enregistre le listener de clic souris pour les boutons du menu pause. */
     private void registerInput() {
         app.getInputManager().addMapping("menuClick", new MouseButtonTrigger(MouseInput.BUTTON_LEFT));
         app.getInputManager().addListener(clickListener, "menuClick");
     }
 
+    /** Crée un quad coloré semi-transparent et l'attache au nœud racine. */
     private Geometry addQuad(float x, float y, float w, float h, ColorRGBA color, float z) {
         Geometry geo = new Geometry("mq_" + System.nanoTime(), new Quad(w, h));
         Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
@@ -127,12 +142,14 @@ public class MenuState extends AbstractAppState {
         return geo;
     }
 
+    /** Crée un CrispLabel avec le texte, la hauteur et la couleur donnés. */
     private CrispLabel label(String text, float h, ColorRGBA color) {
         CrispLabel l = new CrispLabel(app.getAssetManager(), h, color);
         l.setText(text);
         return l;
     }
 
+    /** Détache le menu pause et libère les ressources. */
     @Override
     public void cleanup() {
         super.cleanup();

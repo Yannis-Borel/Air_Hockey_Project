@@ -12,13 +12,17 @@ import com.jme3.scene.shape.Box;
 
 /**
  * Le terrain flotte au sommet d'un gratte-ciel.
- * Table : x∈[-5,+5]  z∈[-10,+10]  y≈0
- * Caméra : (0, 7, 19) → vue légèrement plongeante.
+ * Table : x = [-5,+5]  z = [-10,+10]
+ * Caméra : (0, 7, 19) -> vue légèrement plongeante.
  */
 public class ArenaDecor {
 
     private final Node root;
 
+    /**
+     * Construit le décor complet de l'arène :
+     * dalle du toit, liseré lumineux, vitres, bâtiment principal et paysage urbain.
+     */
     public ArenaDecor(AssetManager am) {
         root = new Node("arenaDecor");
         buildRooftop(am);
@@ -28,8 +32,12 @@ public class ArenaDecor {
         buildCityscape(am);
     }
 
-    // ── Dalle du toit (dépasse légèrement du terrain) ───────────────────────
+    // Dalle du toit
 
+    /**
+     * Construit la dalle du toit sur laquelle repose la table de jeu,
+     * ainsi que le liseré métallique sur ses quatre bords.
+     */
     private void buildRooftop(AssetManager am) {
         // Surface
         Geometry slab = box("rooftop", 10f, 0.18f, 14f, 0f, -0.18f, 0f);
@@ -38,7 +46,7 @@ public class ArenaDecor {
                 new ColorRGBA(0.11f, 0.11f, 0.15f, 1f), 28f));
         root.attachChild(slab);
 
-        // Liseré métallique sur les bords (4 tranches fines)
+        // Liseré métallique sur les bords
         Material edge = litMat(am,
                 new ColorRGBA(0.20f, 0.20f, 0.24f, 1f),
                 new ColorRGBA(0.55f, 0.55f, 0.62f, 1f), 60f);
@@ -47,17 +55,23 @@ public class ArenaDecor {
         // avant / arrière
         for (int s : new int[]{-1, 1}) {
             Geometry e = box("edgeZ_" + s, 10f, h, t, 0f, y, s * 14f);
-            e.setMaterial(edge); root.attachChild(e);
+            e.setMaterial(edge);
+            root.attachChild(e);
         }
         // gauche / droite
         for (int s : new int[]{-1, 1}) {
             Geometry e = box("edgeX_" + s, t, h, 14f, s * 10f, y, 0f);
-            e.setMaterial(edge); root.attachChild(e);
+            e.setMaterial(edge);
+            root.attachChild(e);
         }
     }
 
-    // ── Lumières LED cyan sur le pourtour de la dalle ───────────────────────
+    // Lumières LED cyan sur le pourtour de la dalle
 
+    /**
+     * Ajoute des bandes lumineuses LED cyan sur le pourtour de la dalle,
+     * côtés avant/arrière et gauche/droite.
+     */
     private void buildEdgeGlow(AssetManager am) {
         Material glow = unshaded(am, new ColorRGBA(0.05f, 0.65f, 0.90f, 1f));
         float t = 0.05f, strip = 0.08f;
@@ -65,17 +79,23 @@ public class ArenaDecor {
         // avant / arrière
         for (int s : new int[]{-1, 1}) {
             Geometry g = box("glowZ_" + s, 10f, strip, t, 0f, strip, s * 14.02f);
-            g.setMaterial(glow); root.attachChild(g);
+            g.setMaterial(glow);
+            root.attachChild(g);
         }
         // gauche / droite
         for (int s : new int[]{-1, 1}) {
             Geometry g = box("glowX_" + s, t, strip, 14f, s * 10.02f, strip, 0f);
-            g.setMaterial(glow); root.attachChild(g);
+            g.setMaterial(glow);
+            root.attachChild(g);
         }
     }
 
-    // ── Vitres de sécurité transparentes autour du toit ─────────────────────
+    // Vitres de sécurité transparentes autour du toit
 
+    /**
+     * Ajoute des garde-corps en verre semi-transparent sur les quatre côtés du toit,
+     * simulant des vitres de sécurité autour de l'arène.
+     */
     private void buildGlassRails(AssetManager am) {
         Material glass = new Material(am, "Common/MatDefs/Misc/Unshaded.j3md");
         glass.setColor("Color", new ColorRGBA(0.3f, 0.55f, 0.75f, 0.18f));
@@ -89,6 +109,7 @@ public class ArenaDecor {
             gz.setMaterial(glass.clone());
             gz.setQueueBucket(com.jme3.renderer.queue.RenderQueue.Bucket.Transparent);
             root.attachChild(gz);
+
             // côtés X
             Geometry gx = box("railX_" + s, 0.04f, railH, 13.96f, s * 9.96f, yc, 0f);
             gx.setMaterial(glass.clone());
@@ -97,8 +118,12 @@ public class ArenaDecor {
         }
     }
 
-    // ── Corps du gratte-ciel (descend très bas) ──────────────────────────────
+    // Corps du gratte-ciel
 
+    /**
+     * Construit le corps du gratte-ciel sous la dalle,
+     * avec trois rangées de fenêtres lumineuses sur les façades.
+     */
     private void buildOwnBuilding(AssetManager am) {
         float buildH = 80f;
         Geometry tower = box("ownTower", 8f, buildH / 2f, 11f, 0f, -(buildH / 2f + 0.36f), 0f);
@@ -107,49 +132,58 @@ public class ArenaDecor {
                 new ColorRGBA(0.08f, 0.10f, 0.16f, 1f), 50f));
         root.attachChild(tower);
 
-        // Fenêtres (rangées lumineuses)
+        // Fenêtres
         addWindowBand(am, 0f, -4f,  0f,  8.05f, 0.5f, 11f, true);
         addWindowBand(am, 0f, -9f,  0f,  8.05f, 0.5f, 11f, true);
         addWindowBand(am, 0f, -14f, 0f,  8.05f, 0.5f, 11f, true);
     }
 
+    /**
+     * Ajoute une rangée de fenêtres lumineuses sur une ou deux façades du bâtiment.
+     * Si bothSides est vrai, les fenêtres sont ajoutées sur les façades Z+ et Z-.
+     */
     private void addWindowBand(AssetManager am, float x, float y, float z,
-                                float hx, float hy, float hz, boolean bothSides) {
+                               float hx, float hy, float hz, boolean bothSides) {
         Material winMat = unshaded(am, new ColorRGBA(0.90f, 0.82f, 0.50f, 1f));
         if (bothSides) {
             for (int s : new int[]{-1, 1}) {
                 Geometry w = box("win_" + y + "_" + s, hx, hy, 0.05f,
                         x, y, s * (hz + 0.06f));
-                w.setMaterial(winMat); root.attachChild(w);
+                w.setMaterial(winMat);
+                root.attachChild(w);
             }
         }
     }
 
-    // ── Paysage urbain autour ─────────────────────────────────────────────────
+    // Paysage urbain autour
 
+    /**
+     * Construit le paysage urbain autour de l'arène :
+     * plusieurs bâtiments de tailles et hauteurs variées, avec fenêtres lumineuses,
+     * et un sol de ville très bas simulant le halo lumineux de la cité.
+     */
     private void buildCityscape(AssetManager am) {
         // Chaque bâtiment : {cx, cz, halfW, halfD, topY}
-        // topY < 0 → son toit est en dessous de notre dalle
         float[][] buildings = {
-            // Gauche proches
-            {-17f,  -4f, 3.5f, 4.0f, -6f},
-            {-22f,   5f, 5.0f, 3.5f, -3f},
-            {-15f,  10f, 2.5f, 2.5f,-12f},
-            // Droite proches
-            { 17f,  -4f, 3.5f, 4.0f, -5f},
-            { 22f,   5f, 5.0f, 3.5f, -4f},
-            { 15f,  10f, 2.5f, 2.5f,-11f},
-            // Fond
-            { -8f, -22f, 4.0f, 3.0f, -2f},
-            {  0f, -24f, 6.0f, 4.0f,  1f},   // ce bâtiment est presque aussi haut
-            {  8f, -22f, 3.5f, 3.0f, -3f},
-            {-18f, -18f, 4.5f, 3.5f, -8f},
-            { 18f, -18f, 4.5f, 3.5f, -7f},
-            // Côtés lointains
-            {-32f,   0f, 6.0f, 5.0f,-14f},
-            { 32f,   0f, 6.0f, 5.0f,-13f},
-            {-26f, -14f, 4.0f, 4.0f, -9f},
-            { 26f, -14f, 4.0f, 4.0f,-10f},
+                // Gauche proches
+                {-17f,  -4f, 3.5f, 4.0f, -6f},
+                {-22f,   5f, 5.0f, 3.5f, -3f},
+                {-15f,  10f, 2.5f, 2.5f,-12f},
+                // Droite proches
+                { 17f,  -4f, 3.5f, 4.0f, -5f},
+                { 22f,   5f, 5.0f, 3.5f, -4f},
+                { 15f,  10f, 2.5f, 2.5f,-11f},
+                // Fond
+                { -8f, -22f, 4.0f, 3.0f, -2f},
+                {  0f, -24f, 6.0f, 4.0f,  1f},
+                {  8f, -22f, 3.5f, 3.0f, -3f},
+                {-18f, -18f, 4.5f, 3.5f, -8f},
+                { 18f, -18f, 4.5f, 3.5f, -7f},
+                // Côtés lointains
+                {-32f,   0f, 6.0f, 5.0f,-14f},
+                { 32f,   0f, 6.0f, 5.0f,-13f},
+                {-26f, -14f, 4.0f, 4.0f, -9f},
+                { 26f, -14f, 4.0f, 4.0f,-10f},
         };
 
         for (int i = 0; i < buildings.length; i++) {
@@ -185,15 +219,23 @@ public class ArenaDecor {
         root.attachChild(cityFloor);
     }
 
+    /**
+     * Génère un matériau de façade légèrement différent selon l'index du bâtiment,
+     * pour varier les teintes bleutées de la skyline.
+     */
     private Material cityFacade(AssetManager am, int seed) {
         float v = 0.06f + (seed % 4) * 0.015f;
         return litMat(am,
                 new ColorRGBA(v * 0.4f, v * 0.45f, v * 0.7f, 1f),
-                new ColorRGBA(v,        v * 1.1f,  v * 1.6f, 1f), 40f);
+                new ColorRGBA(v, v * 1.1f,  v * 1.6f, 1f), 40f);
     }
 
-    // ── Éclairage de la scène ────────────────────────────────────────────────
+    // Éclairage de la scène
 
+    /**
+     * Ajoute les lumières dynamiques de l'arène au noeud de scène donné :
+     * 4 projecteurs bleus au-dessus du terrain et un halo ambiant de la ville en bas.
+     */
     public void addLightsTo(Node scene) {
         // 4 projecteurs au-dessus du terrain, teinte bleue froide
         float[][] pos = {{-5f,-7f},{5f,-7f},{-5f,7f},{5f,7f}};
@@ -212,31 +254,42 @@ public class ArenaDecor {
         scene.addLight(city);
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    // Helpers
 
+    /**
+     * Crée une géométrie Box centrée à la position (x, y, z)
+     * avec les demi-dimensions (hx, hy, hz).
+     */
     private static Geometry box(String name, float hx, float hy, float hz,
-                                 float x, float y, float z) {
+                                float x, float y, float z) {
         Geometry g = new Geometry(name, new Box(hx, hy, hz));
         g.setLocalTranslation(x, y, z);
         return g;
     }
 
+    /**
+     * Crée un matériau Lighting avec couleurs ambiante, diffuse et brillance données.
+     */
     private static Material litMat(AssetManager am,
-                                    ColorRGBA ambient, ColorRGBA diffuse, float shine) {
+                                   ColorRGBA ambient, ColorRGBA diffuse, float shine) {
         Material m = new Material(am, "Common/MatDefs/Light/Lighting.j3md");
         m.setBoolean("UseMaterialColors", true);
-        m.setColor("Ambient",  ambient);
-        m.setColor("Diffuse",  diffuse);
+        m.setColor("Ambient", ambient);
+        m.setColor("Diffuse", diffuse);
         m.setColor("Specular", new ColorRGBA(0.4f, 0.4f, 0.5f, 1f));
         m.setFloat("Shininess", shine);
         return m;
     }
 
+    /**
+     * Crée un matériau Unshaded avec une couleur unie (pas affecté par les lumières).
+     */
     private static Material unshaded(AssetManager am, ColorRGBA color) {
         Material m = new Material(am, "Common/MatDefs/Misc/Unshaded.j3md");
         m.setColor("Color", color);
         return m;
     }
 
+    /** Retourne le noeud racine du décor à attacher à la scène. */
     public Node getNode() { return root; }
 }

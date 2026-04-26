@@ -8,6 +8,11 @@ import com.jme3.math.ColorRGBA;
 import com.jme3.scene.Node;
 import projet.M1.hud.CrispLabel;
 
+/**
+ * Affiche le décompte 3 -> 2 -> 1 -> GO! au centre de l'écran avant le début de la partie.
+ * Joue un bip sonore à chaque chiffre et un son GO! à la fin.
+ * Restaure la vitesse du palet sauvegardée et se retire automatiquement.
+ */
 public class CountdownState extends AbstractAppState {
 
     private SimpleApplication app;
@@ -16,18 +21,25 @@ public class CountdownState extends AbstractAppState {
     private CrispLabel countLabel;
 
     private float timer = 0f;
-    private int   count = 3;
+    private int count = 3;
 
     private int screenW, screenH;
 
+    /**
+     * Crée le décompte lié à l'instance Main pour accéder au SoundManager
+     * et restaurer la vitesse du palet à la fin.
+     */
     public CountdownState(Main mainApp) {
         this.mainApp = mainApp;
     }
 
+    /**
+     * Crée le label de décompte centré à l'écran et l'attache au guiNode.
+     */
     @Override
     public void initialize(AppStateManager stateManager, Application app) {
         super.initialize(stateManager, app);
-        this.app    = (SimpleApplication) app;
+        this.app = (SimpleApplication) app;
         this.guiNode = this.app.getGuiNode();
         screenW = app.getContext().getSettings().getWidth();
         screenH = app.getContext().getSettings().getHeight();
@@ -37,6 +49,10 @@ public class CountdownState extends AbstractAppState {
         guiNode.attachChild(countLabel);
     }
 
+    /**
+     * Décrémente le compteur chaque seconde.
+     * Quand count < 0, détache cet état pour lancer la partie.
+     */
     @Override
     public void update(float tpf) {
         timer += tpf;
@@ -53,9 +69,13 @@ public class CountdownState extends AbstractAppState {
         updateDisplay();
     }
 
+    /**
+     * Met à jour le label avec le chiffre courant ou "GO!", sa couleur
+     * et joue le son correspondant (bip pour les chiffres, go pour la fin).
+     */
     private void updateDisplay() {
         ColorRGBA color;
-        String    text;
+        String text;
         if (count > 0) {
             color = new ColorRGBA(1f, 0.75f, 0.1f, 1f);
             text  = String.valueOf(count);
@@ -72,6 +92,10 @@ public class CountdownState extends AbstractAppState {
                 2f);
     }
 
+    /**
+     * Détache le label du guiNode, restaure la vitesse du palet
+     * et réactive le curseur.
+     */
     @Override
     public void cleanup() {
         super.cleanup();
