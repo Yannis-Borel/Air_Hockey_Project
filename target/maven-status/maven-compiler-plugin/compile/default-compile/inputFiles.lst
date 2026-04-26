@@ -3,6 +3,7 @@
 /Users/yoyan/Documents/Vision par ordinateur/Air_Hockey_Project/src/main/java/projet/M1/entities/Puck.java
 /Users/yoyan/Documents/Vision par ordinateur/Air_Hockey_Project/src/main/java/projet/M1/game/PowerUpManager.java
 /Users/yoyan/Documents/Vision par ordinateur/Air_Hockey_Project/src/main/java/projet/M1/CountdownState.java
+/Users/yoyan/Documents/Vision par ordinateur/Air_Hockey_Project/src/main/java/projet/M1/audio/SoundManager.java
 /Users/yoyan/Documents/Vision par ordinateur/Air_Hockey_Project/src/main/java/projet/M1/CinematicState.java
 /Users/yoyan/Documents/Vision par ordinateur/Air_Hockey_Project/src/main/java/projet/M1/GameOverState.java
 /Users/yoyan/Documents/Vision par ordinateur/Air_Hockey_Project/src/main/java/projet/M1/AIController.java

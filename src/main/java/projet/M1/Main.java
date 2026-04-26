@@ -9,6 +9,7 @@ import com.jme3.light.DirectionalLight;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
 import com.jme3.system.AppSettings;
+import projet.M1.audio.SoundManager;
 import projet.M1.entities.Paddle;
 import projet.M1.entities.Puck;
 import projet.M1.entities.Table;
@@ -49,8 +50,12 @@ public class Main extends SimpleApplication {
     private AIController       aiController = null;
     private TournamentManager  tournament   = null;
 
+    private SoundManager        soundManager;
+
     private final Vector3f savedPuckVelocity = new Vector3f();
     private boolean        gameOverShown     = false;
+
+    public SoundManager getSoundManager() { return soundManager; }
 
     // ---------------------------------------------------------------
 
@@ -118,6 +123,11 @@ public class Main extends SimpleApplication {
         int screenH = context.getSettings().getHeight();
         hud = new HUDManager(assetManager, rootNode, guiNode, screenW, screenH, gameRules);
         hud.setPowerUpManager(powerUpManager);
+
+        // Sons
+        soundManager = new SoundManager(assetManager, rootNode);
+        physics.setSoundManager(soundManager);
+        gameRules.setSoundManager(soundManager);
 
         // Inputs
         playerInputP1 = new PlayerInputHandler(inputManager, paddleP1, "p1_",

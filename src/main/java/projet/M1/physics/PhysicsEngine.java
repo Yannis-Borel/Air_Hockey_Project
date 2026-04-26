@@ -6,6 +6,8 @@ import projet.M1.entities.Paddle;
 import projet.M1.entities.Puck;
 import projet.M1.entities.Table;
 
+import projet.M1.audio.SoundManager;
+
 import java.util.Random;
 
 /**
@@ -48,6 +50,9 @@ public class PhysicsEngine {
     private boolean goalP2 = false;
 
     private projet.M1.game.GameRules gameRules;
+    private SoundManager             soundManager;
+
+    public void setSoundManager(SoundManager sm) { this.soundManager = sm; }
 
     public PhysicsEngine(Puck puck, Paddle paddleP1, Paddle paddleP2, Table table) {
         this.puck     = puck;
@@ -137,7 +142,8 @@ public class PhysicsEngine {
             }
 
             puck.setVelocity(vx, vz);
-            if (gameRules != null) gameRules.notifyPaddleTouch(playerNum);
+            if (gameRules     != null) gameRules.notifyPaddleTouch(playerNum);
+            if (soundManager  != null) soundManager.playPaddleHit();
         }
     }
 
@@ -188,16 +194,16 @@ public class PhysicsEngine {
             puck.setPosition(-Table.HALF_W + r, pos.z);
             Vector3f v2 = addBounceNoise(VectorMath.reflect(vel, new Vector3f(1, 0, 0)));
             puck.setVelocity(v2.x * RESTITUTION, v2.z * RESTITUTION);
-            pos = puck.getPosition();
-            vel = puck.getVelocity();
+            if (soundManager != null) soundManager.playWallHit();
+            pos = puck.getPosition(); vel = puck.getVelocity();
         }
 
         if (pos.x + r > Table.HALF_W) {
             puck.setPosition(Table.HALF_W - r, pos.z);
             Vector3f v2 = addBounceNoise(VectorMath.reflect(vel, new Vector3f(-1, 0, 0)));
             puck.setVelocity(v2.x * RESTITUTION, v2.z * RESTITUTION);
-            pos = puck.getPosition();
-            vel = puck.getVelocity();
+            if (soundManager != null) soundManager.playWallHit();
+            pos = puck.getPosition(); vel = puck.getVelocity();
         }
 
         if (pos.z - r < -Table.HALF_L) {
@@ -207,6 +213,7 @@ public class PhysicsEngine {
                 puck.setPosition(pos.x, -Table.HALF_L + r);
                 Vector3f v2 = addBounceNoise(VectorMath.reflect(vel, new Vector3f(0, 0, 1)));
                 puck.setVelocity(v2.x * RESTITUTION, v2.z * RESTITUTION);
+                if (soundManager != null) soundManager.playWallHit();
             }
             pos = puck.getPosition();
         }
@@ -218,6 +225,7 @@ public class PhysicsEngine {
                 puck.setPosition(pos.x, Table.HALF_L - r);
                 Vector3f v2 = addBounceNoise(VectorMath.reflect(vel, new Vector3f(0, 0, -1)));
                 puck.setVelocity(v2.x * RESTITUTION, v2.z * RESTITUTION);
+                if (soundManager != null) soundManager.playWallHit();
             }
         }
     }

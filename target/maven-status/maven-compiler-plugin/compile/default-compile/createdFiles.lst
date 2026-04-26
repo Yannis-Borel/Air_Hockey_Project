@@ -17,6 +17,7 @@ projet/M1/entities/ArenaDecor.class
 projet/M1/hud/HUDManager.class
 projet/M1/MainMenuState$Btn.class
 projet/M1/input/PlayerInputHandler.class
+projet/M1/audio/SoundManager.class
 projet/M1/game/PowerUpManager.class
 projet/M1/TournamentManager$Opponent.class
 projet/M1/hud/CrispLabel.class

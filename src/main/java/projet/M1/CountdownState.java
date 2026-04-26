@@ -59,9 +59,11 @@ public class CountdownState extends AbstractAppState {
         if (count > 0) {
             color = new ColorRGBA(1f, 0.75f, 0.1f, 1f);
             text  = String.valueOf(count);
+            if (mainApp.getSoundManager() != null) mainApp.getSoundManager().playCountBeep();
         } else {
             color = new ColorRGBA(0.2f, 1f, 0.3f, 1f);
             text  = "GO!";
+            if (mainApp.getSoundManager() != null) mainApp.getSoundManager().playGo();
         }
         countLabel.setColorAndText(color, text);
         countLabel.setLocalTranslation(

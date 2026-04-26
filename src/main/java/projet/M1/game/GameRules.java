@@ -6,6 +6,8 @@ import projet.M1.entities.Puck;
 import projet.M1.entities.Table;
 import projet.M1.physics.PhysicsEngine;
 
+import projet.M1.audio.SoundManager;
+
 import java.util.Random;
 
 /**
@@ -48,6 +50,9 @@ public class GameRules {
     private final PhysicsEngine physics;
     private final Paddle        paddleP1;
     private final Paddle        paddleP2;
+    private       SoundManager  soundManager;
+
+    public void setSoundManager(SoundManager sm) { this.soundManager = sm; }
 
     public GameRules(Puck puck, PhysicsEngine physics, Paddle paddleP1, Paddle paddleP2) {
         this.puck     = puck;
@@ -147,6 +152,7 @@ public class GameRules {
         }
 
         System.out.println(goalMessage);
+        if (soundManager != null) soundManager.playGoal();
 
         // Le joueur qui a concédé sert ensuite
         nextServer = camp;
