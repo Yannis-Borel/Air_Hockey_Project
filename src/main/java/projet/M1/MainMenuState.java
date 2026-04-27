@@ -210,7 +210,7 @@ public class MainMenuState extends AbstractAppState {
         app.getInputManager().addListener(clickListener, "mmClick");
     }
 
-    /** Crée un quad coloré semi-transparent et l'attache au nœud racine. */
+    /** Crée un quad coloré semi-transparent et l'attache au noeud racine. */
     private Geometry addQuad(float x, float y, float w, float h, ColorRGBA color, float z) {
         Geometry geo = new Geometry("mmq_" + System.nanoTime(), new Quad(w, h));
         Material mat = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
